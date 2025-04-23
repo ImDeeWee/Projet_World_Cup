@@ -1,0 +1,13 @@
+services:
+  postgres:
+    image: postgres:latest
+    container_name: postgres-wc
+    restart: always
+    environment:
+      POSTGRES_USER: wcuser
+      POSTGRES_PASSWORD: wcpass
+      POSTGRES_DB: worldcupdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker/db/init.sql:/docker-entrypoint-initdb.d/init.sql
