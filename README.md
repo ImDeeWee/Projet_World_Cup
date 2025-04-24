@@ -47,10 +47,29 @@ docker-compose up --build
 ### 4. Acceder a la base depuis son terminal (L'etape precedente doit etre faite)
 
 ```bash
-docker run -it --rm --network host postgres psql -h 127.0.0.1 -U wcuser -d worldcupdb
+docker exec -it postgres-wc psql -U wcuser -d worldcupdb
 ```
 
-PS: j'ai essayé de rouler la BD sur DBeaver, mais je ne sais pas pourquoi, mais mon windows ne voulait pas se connecter sur la DB. You better look on youtube to do it, which is something that I didn't do.
+## Informations pour se connecter à la BD
+
+### Hôte
+localhost
+
+### Port
+5433
+
+### User
+wcuser
+
+### Password
+wcpass
+
+### Database
+worldcupdb
+
+**WARNING**: Si tu veux te connecter localement sur la BD ou via un IDE tel que DBeaver, tu dois arrêter ton postgresql local si tu l'as d'installé sur ta machine. Ask à un AI comment le faire.
+[Lien StackOverflow du problème](https://stackoverflow.com/questions/74182080/docker-compose-w-postgresql-psql-password-authentication-failed)
+
 
 
 

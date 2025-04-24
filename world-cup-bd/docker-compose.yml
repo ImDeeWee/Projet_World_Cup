@@ -8,6 +8,10 @@ services:
       POSTGRES_PASSWORD: wcpass
       POSTGRES_DB: worldcupdb
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
-      - ./docker/db/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - pgdata:/var/lib/postgresql/data      # ✅ Persistance automatique
+      - ./docker/db/init.sql:/docker-entrypoint-initdb.d/init.sql  # Script de création
+
+volumes:
+  pgdata:  # Ce volume stockera les données PostgreSQL localement
