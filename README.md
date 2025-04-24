@@ -50,24 +50,35 @@ docker-compose up --build
 docker exec -it postgres-wc psql -U wcuser -d worldcupdb
 ```
 
-## Informations pour se connecter à la BD
+## 🔒 Informations pour se connecter à la base de données
 
-### Hôte
-localhost
+| Paramètre       | Valeur        |
+|------------------|---------------|
+| **Hôte**         | `localhost`   |
+| **Port**         | `5433`        |
+| **Utilisateur**  | `wcuser`      |
+| **Mot de passe** | `wcpass`      |
+| **Base**         | `worldcupdb`  |
 
-### Port
-5433
+## ⚠️ Astuce DBeaver (Windows)
 
-### User
-wcuser
+> Si tu as PostgreSQL installé **localement sur ta machine Windows** (en dehors de Docker),  
+> il se peut qu’il utilise déjà le **port 5432**.  
+> Résultat : DBeaver essaie de se connecter au serveur local au lieu de celui dans Docker.
 
-### Password
-wcpass
+✅ **Solution** :  
+**Arrête le service PostgreSQL local** avant de démarrer DBeaver ou de te connecter à la base Docker.
 
-### Database
-worldcupdb
+### 📌 Comment faire
 
-**WARNING**: Si tu veux te connecter localement sur la BD ou via un IDE tel que DBeaver, tu dois arrêter ton postgresql local si tu l'as d'installé sur ta machine. Ask à un AI comment le faire.
+- Ouvre `Services` (tape `services.msc` dans la barre de recherche Windows)
+- Trouve `postgresql` ou `postgresql-x64-XX`
+- Clique droit → **Arrêter**
+
+Tu pourras ensuite te connecter sans problème à `localhost:5432`, qui sera désormais géré par Docker 🐳
+
+---
+
 [Lien StackOverflow du problème](https://stackoverflow.com/questions/74182080/docker-compose-w-postgresql-psql-password-authentication-failed)
 
 
