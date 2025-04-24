@@ -32,6 +32,7 @@ cd Projet_World_Cup/world-cup-bd
 ````
 ### . Démarer la page React (rien fait encore)
 ```bash
+npm install
 npm start
 ```
 
