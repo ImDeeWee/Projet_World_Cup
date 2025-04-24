@@ -30,7 +30,7 @@ brew install --cask docker
 git clone https://github.com/ton-compte/Projet_World_Cup.git
 cd Projet_World_Cup/world-cup-bd
 ````
-### . Démarer la page React (rien fait encore)
+### 2. Démarer la page React (rien fait encore)
 ```bash
 npm install
 npm start
