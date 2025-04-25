@@ -73,69 +73,207 @@ CREATE TYPE public.type_role_arbitre AS ENUM (
 ALTER TYPE public.type_role_arbitre OWNER TO wcuser;
 
 --
+-- Name: fn_donne_verifie_arbitre_principal(); Type: FUNCTION; Schema: public; Owner: wcuser
+--
+
+CREATE FUNCTION public.fn_donne_verifie_arbitre_principal() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    v_role type_role_arbitre;
+BEGIN
+    SELECT rolearbitre
+      INTO v_role
+      FROM arbitres
+     WHERE id_arbitre = NEW.arbitre_id;
+
+    IF v_role IS DISTINCT FROM 'Principal' THEN
+        RAISE EXCEPTION
+          'Arbitre % n''a pas le rôle ''Principal'' (actuel = %)',
+          NEW.arbitre_id, v_role;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION public.fn_donne_verifie_arbitre_principal() OWNER TO wcuser;
+
+--
+-- Name: fn_faute_gestion_cartons(); Type: FUNCTION; Schema: public; Owner: wcuser
+--
+
+CREATE FUNCTION public.fn_faute_gestion_cartons() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    nb_jaunes  INT;
+    existe_rouge BOOLEAN;
+BEGIN
+    /* Y a-t-il déjà un rouge pour ce joueur dans ce match ? */
+    SELECT EXISTS (
+        SELECT 1
+          FROM faute
+         WHERE joueur_id = NEW.joueur_id
+           AND match_id  = NEW.match_id
+           AND typefaute = 'Rouge'
+    ) INTO existe_rouge;
+
+    IF existe_rouge THEN
+        RAISE EXCEPTION
+          'Le joueur % a déjà un carton rouge pour le match %, insertion refusée',
+          NEW.joueur_id, NEW.match_id;
+    END IF;
+
+    /* Si l’on ajoute un jaune, faut-il le transformer en rouge ? */
+    IF NEW.typefaute = 'Jaune' THEN
+        SELECT COUNT(*)
+          INTO nb_jaunes
+          FROM faute
+         WHERE joueur_id = NEW.joueur_id
+           AND match_id  = NEW.match_id
+           AND typefaute = 'Jaune';
+
+        IF nb_jaunes >= 1 THEN   -- c’est le 2ᵉ jaune
+            NEW.typefaute := 'Rouge';
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION public.fn_faute_gestion_cartons() OWNER TO wcuser;
+
+--
+-- Name: fn_sync_gagnant(); Type: FUNCTION; Schema: public; Owner: wcuser
+--
+
+CREATE FUNCTION public.fn_sync_gagnant() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    v_id_a       INT;
+    v_id_b       INT;
+    v_gagnant_id INT;
+BEGIN
+    /* 1) Récupère les infos du match visé */
+    SELECT id_equipea,
+           id_equipeb,
+           gagnant_id
+      INTO v_id_a,
+           v_id_b,
+           v_gagnant_id
+      FROM matchs
+     WHERE id_match = NEW.match_id;
+
+    /* 2) Victoire de l’équipe A */
+    IF NEW.pointequipea > NEW.pointequipeb THEN
+        IF v_gagnant_id IS NULL OR v_gagnant_id = v_id_a THEN
+            UPDATE matchs
+               SET gagnant_id = v_id_a
+             WHERE id_match  = NEW.match_id;
+        ELSE
+            RAISE EXCEPTION
+              'Incohérence : gagnant_id=% mais pointequipea (%) > pointequipeb (%) pour match %',
+              v_gagnant_id, NEW.pointequipea, NEW.pointequipeb, NEW.match_id;
+        END IF;
+
+    /* 3) Victoire de l’équipe B */
+    ELSIF NEW.pointequipeb > NEW.pointequipea THEN
+        IF v_gagnant_id IS NULL OR v_gagnant_id = v_id_b THEN
+            UPDATE matchs
+               SET gagnant_id = v_id_b
+             WHERE id_match  = NEW.match_id;
+        ELSE
+            RAISE EXCEPTION
+              'Incohérence : gagnant_id=% mais pointequipeb (%) > pointequipea (%) pour match %',
+              v_gagnant_id, NEW.pointequipeb, NEW.pointequipea, NEW.match_id;
+        END IF;
+
+    /* 4) Match nul */
+    ELSE  -- NEW.pointequipea = NEW.pointequipeb
+        IF v_gagnant_id IS NOT NULL THEN
+            RAISE EXCEPTION
+              'Match nul : la colonne gagnant_id doit être NULL (match %)',
+              NEW.match_id;
+        END IF;
+        -- Rien à faire si c’est déjà NULL
+    END IF;
+
+    RETURN NEW;      -- valide l'INSERT / UPDATE sur scorefinal
+END;
+$$;
+
+
+ALTER FUNCTION public.fn_sync_gagnant() OWNER TO wcuser;
+
+--
 -- Name: fn_verifie_roles_arbitres(); Type: FUNCTION; Schema: public; Owner: wcuser
 --
 
 CREATE FUNCTION public.fn_verifie_roles_arbitres() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    r_principal  type_role_arbitre;
-    r_assist1    type_role_arbitre;
-    r_assist2    type_role_arbitre;
-    r_assist3    type_role_arbitre;
-BEGIN
-    /* 2-a ► mêmes arbitres plusieurs fois ? */
-    IF NEW.arbitre_principal_id IN (NEW.arbitre_secondaire1_id,
-                                    NEW.arbitre_secondaire2_id,
-                                    NEW.arbitre_secondaire3_id)
-       OR NEW.arbitre_secondaire1_id IS NOT NULL
-          AND NEW.arbitre_secondaire1_id IN (NEW.arbitre_secondaire2_id,
-                                             NEW.arbitre_secondaire3_id)
-       OR NEW.arbitre_secondaire2_id IS NOT NULL
-          AND NEW.arbitre_secondaire2_id = NEW.arbitre_secondaire3_id
-    THEN
-        RAISE EXCEPTION
-          'Le même arbitre ne peut pas être assigné plus d’une fois pour le match %',
-          NEW.match_id;
-    END IF;
-
-    /* 2-b ► rôles conformes ? */
-    SELECT rolearbitre INTO r_principal
-      FROM arbitres WHERE id_arbitre = NEW.arbitre_principal_id;
-
-    IF r_principal IS DISTINCT FROM 'Principal' THEN
-        RAISE EXCEPTION
-          'L’’arbitre % doit avoir le rôle Principal (actuel = %)',
-          NEW.arbitre_principal_id, r_principal;
-    END IF;
-
-    SELECT rolearbitre INTO r_assist1
-      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire1_id;
-    IF r_assist1 IS DISTINCT FROM 'Assistant' THEN
-        RAISE EXCEPTION
-          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
-          NEW.arbitre_secondaire1_id, r_assist1;
-    END IF;
-
-    SELECT rolearbitre INTO r_assist2
-      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire2_id;
-    IF r_assist2 IS DISTINCT FROM 'Assistant' THEN
-        RAISE EXCEPTION
-          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
-          NEW.arbitre_secondaire2_id, r_assist2;
-    END IF;
-
-    SELECT rolearbitre INTO r_assist3
-      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire3_id;
-    IF r_assist3 IS DISTINCT FROM 'Assistant' THEN
-        RAISE EXCEPTION
-          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
-          NEW.arbitre_secondaire3_id, r_assist3;
-    END IF;
-
-    RETURN NEW;                -- validation réussie
-END;
+    AS $$
+DECLARE
+    r_principal  type_role_arbitre;
+    r_assist1    type_role_arbitre;
+    r_assist2    type_role_arbitre;
+    r_assist3    type_role_arbitre;
+BEGIN
+    /* 2-a ► mêmes arbitres plusieurs fois ? */
+    IF NEW.arbitre_principal_id IN (NEW.arbitre_secondaire1_id,
+                                    NEW.arbitre_secondaire2_id,
+                                    NEW.arbitre_secondaire3_id)
+       OR NEW.arbitre_secondaire1_id IS NOT NULL
+          AND NEW.arbitre_secondaire1_id IN (NEW.arbitre_secondaire2_id,
+                                             NEW.arbitre_secondaire3_id)
+       OR NEW.arbitre_secondaire2_id IS NOT NULL
+          AND NEW.arbitre_secondaire2_id = NEW.arbitre_secondaire3_id
+    THEN
+        RAISE EXCEPTION
+          'Le même arbitre ne peut pas être assigné plus d’une fois pour le match %',
+          NEW.match_id;
+    END IF;
+
+    /* 2-b ► rôles conformes ? */
+    SELECT rolearbitre INTO r_principal
+      FROM arbitres WHERE id_arbitre = NEW.arbitre_principal_id;
+
+    IF r_principal IS DISTINCT FROM 'Principal' THEN
+        RAISE EXCEPTION
+          'L’’arbitre % doit avoir le rôle Principal (actuel = %)',
+          NEW.arbitre_principal_id, r_principal;
+    END IF;
+
+    SELECT rolearbitre INTO r_assist1
+      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire1_id;
+    IF r_assist1 IS DISTINCT FROM 'Assistant' THEN
+        RAISE EXCEPTION
+          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
+          NEW.arbitre_secondaire1_id, r_assist1;
+    END IF;
+
+    SELECT rolearbitre INTO r_assist2
+      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire2_id;
+    IF r_assist2 IS DISTINCT FROM 'Assistant' THEN
+        RAISE EXCEPTION
+          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
+          NEW.arbitre_secondaire2_id, r_assist2;
+    END IF;
+
+    SELECT rolearbitre INTO r_assist3
+      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire3_id;
+    IF r_assist3 IS DISTINCT FROM 'Assistant' THEN
+        RAISE EXCEPTION
+          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
+          NEW.arbitre_secondaire3_id, r_assist3;
+    END IF;
+
+    RETURN NEW;                -- validation réussie
+END;
 $$;
 
 
@@ -147,30 +285,30 @@ ALTER FUNCTION public.fn_verifie_roles_arbitres() OWNER TO wcuser;
 
 CREATE FUNCTION public.joue_check_same_year() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    anneeA INT;
-    anneeB INT;
-BEGIN
-    -- récupérer l'année de chaque équipe
-    SELECT anneecoupe INTO anneeA
-    FROM   equipe
-    WHERE  id_equipe = NEW.id_equipeA;
-
-    SELECT anneecoupe INTO anneeB
-    FROM   equipe
-    WHERE  id_equipe = NEW.id_equipeB;
-
-    -- si l'une des deux lignes n'existe pas, FK lèvera déjà l'erreur ;
-    -- on vérifie seulement l'égalité
-    IF anneeA IS DISTINCT FROM anneeB THEN
-        RAISE EXCEPTION
-          'Les équipes % et % ne participent pas à la même édition : % vs %',
-          NEW.id_equipeA, NEW.id_equipeB, anneeA, anneeB;
-    END IF;
-
-    RETURN NEW;   -- tout est OK, on laisse passer
-END;
+    AS $$
+DECLARE
+    anneeA INT;
+    anneeB INT;
+BEGIN
+    -- récupérer l'année de chaque équipe
+    SELECT anneecoupe INTO anneeA
+    FROM   equipe
+    WHERE  id_equipe = NEW.id_equipeA;
+
+    SELECT anneecoupe INTO anneeB
+    FROM   equipe
+    WHERE  id_equipe = NEW.id_equipeB;
+
+    -- si l'une des deux lignes n'existe pas, FK lèvera déjà l'erreur ;
+    -- on vérifie seulement l'égalité
+    IF anneeA IS DISTINCT FROM anneeB THEN
+        RAISE EXCEPTION
+          'Les équipes % et % ne participent pas à la même édition : % vs %',
+          NEW.id_equipeA, NEW.id_equipeB, anneeA, anneeB;
+    END IF;
+
+    RETURN NEW;   -- tout est OK, on laisse passer
+END;
 $$;
 
 
@@ -238,6 +376,18 @@ CREATE TABLE public.coupedumondeinfo (
 
 
 ALTER TABLE public.coupedumondeinfo OWNER TO wcuser;
+
+--
+-- Name: donne; Type: TABLE; Schema: public; Owner: wcuser
+--
+
+CREATE TABLE public.donne (
+    arbitre_id integer NOT NULL,
+    faute_id integer NOT NULL
+);
+
+
+ALTER TABLE public.donne OWNER TO wcuser;
 
 --
 -- Name: entraine; Type: TABLE; Schema: public; Owner: wcuser
@@ -389,10 +539,10 @@ CREATE TABLE public.matchs (
     moism integer,
     rang public.type_rang NOT NULL,
     stade character varying(30) NOT NULL,
-    gagnant character varying(30) NOT NULL,
     arbitreprincipal_id integer,
     id_equipea integer,
     id_equipeb integer,
+    gagnant_id integer,
     CONSTRAINT matchs_jourm_check CHECK (((jourm > 0) AND (jourm <= 31))),
     CONSTRAINT matchs_moism_check CHECK (((moism >= 1) AND (moism <= 12)))
 );
@@ -503,6 +653,14 @@ COPY public.coupedumondeinfo (annee, jourd, moisd, jourf, moisf) FROM stdin;
 
 
 --
+-- Data for Name: donne; Type: TABLE DATA; Schema: public; Owner: wcuser
+--
+
+COPY public.donne (arbitre_id, faute_id) FROM stdin;
+\.
+
+
+--
 -- Data for Name: entraine; Type: TABLE DATA; Schema: public; Owner: wcuser
 --
 
@@ -554,7 +712,7 @@ COPY public.joueur (id_joueur, numero, prenom, nomfamille, journ, moisn, annee, 
 -- Data for Name: matchs; Type: TABLE DATA; Schema: public; Owner: wcuser
 --
 
-COPY public.matchs (id_match, jourm, moism, rang, stade, gagnant, arbitreprincipal_id, id_equipea, id_equipeb) FROM stdin;
+COPY public.matchs (id_match, jourm, moism, rang, stade, arbitreprincipal_id, id_equipea, id_equipeb, gagnant_id) FROM stdin;
 \.
 
 
@@ -649,6 +807,14 @@ ALTER TABLE ONLY public.coupedumondeinfo
 
 
 --
+-- Name: donne donne_pkey; Type: CONSTRAINT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.donne
+    ADD CONSTRAINT donne_pkey PRIMARY KEY (arbitre_id, faute_id);
+
+
+--
 -- Name: entraine entraine_pkey; Type: CONSTRAINT; Schema: public; Owner: wcuser
 --
 
@@ -729,10 +895,31 @@ ALTER TABLE ONLY public.stafftechnique
 
 
 --
+-- Name: donne trg_donne_verif_principal; Type: TRIGGER; Schema: public; Owner: wcuser
+--
+
+CREATE TRIGGER trg_donne_verif_principal BEFORE INSERT OR UPDATE ON public.donne FOR EACH ROW EXECUTE FUNCTION public.fn_donne_verifie_arbitre_principal();
+
+
+--
+-- Name: faute trg_faute_gestion_cartons; Type: TRIGGER; Schema: public; Owner: wcuser
+--
+
+CREATE TRIGGER trg_faute_gestion_cartons BEFORE INSERT OR UPDATE ON public.faute FOR EACH ROW EXECUTE FUNCTION public.fn_faute_gestion_cartons();
+
+
+--
 -- Name: joue trg_joue_same_year; Type: TRIGGER; Schema: public; Owner: wcuser
 --
 
 CREATE TRIGGER trg_joue_same_year BEFORE INSERT OR UPDATE ON public.joue FOR EACH ROW EXECUTE FUNCTION public.joue_check_same_year();
+
+
+--
+-- Name: scorefinal trg_sync_gagnant; Type: TRIGGER; Schema: public; Owner: wcuser
+--
+
+CREATE TRIGGER trg_sync_gagnant AFTER INSERT OR UPDATE ON public.scorefinal FOR EACH ROW EXECUTE FUNCTION public.fn_sync_gagnant();
 
 
 --
@@ -748,6 +935,22 @@ CREATE TRIGGER trg_verifie_roles_arbitres BEFORE INSERT OR UPDATE ON public.gere
 
 ALTER TABLE ONLY public.coupedumondeinfo
     ADD CONSTRAINT coupedumondeinfo_annee_fkey FOREIGN KEY (annee) REFERENCES public.coupedumondehote(annee);
+
+
+--
+-- Name: donne donne_arbitre_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.donne
+    ADD CONSTRAINT donne_arbitre_id_fkey FOREIGN KEY (arbitre_id) REFERENCES public.arbitres(id_arbitre) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: donne donne_faute_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.donne
+    ADD CONSTRAINT donne_faute_id_fkey FOREIGN KEY (faute_id) REFERENCES public.faute(faute_id) ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 --
@@ -788,6 +991,14 @@ ALTER TABLE ONLY public.faute
 
 ALTER TABLE ONLY public.matchs
     ADD CONSTRAINT fk_matchs_arbitre FOREIGN KEY (arbitreprincipal_id) REFERENCES public.arbitres(id_arbitre);
+
+
+--
+-- Name: matchs fk_matchs_gagnant_equipe; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.matchs
+    ADD CONSTRAINT fk_matchs_gagnant_equipe FOREIGN KEY (gagnant_id) REFERENCES public.equipe(id_equipe) ON UPDATE CASCADE ON DELETE SET NULL;
 
 
 --
