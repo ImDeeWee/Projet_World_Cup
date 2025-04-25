@@ -1,4 +1,4 @@
-# 🌍 Projet World Cup BD – Setup de la Base de Données PostgreSQL
+# 🌍 Projet World Cup BD – Setup de l'interface React et de la Base de Données PostgreSQL
 
 Ce projet utilise **PostgreSQL via Docker** pour créer et gérer une base de données liée à la Coupe du Monde.  
 Aucune installation directe de PostgreSQL n’est nécessaire localement.
@@ -40,11 +40,11 @@ npm start
 
 ### 3. Lancer PostgreSQL avec Docker et restaurer automatiquement la dernière sauvegarde
 
-> ⚠️ Assure-toi que **Docker Desktop** est lancé avant de continuer.
+> ⚠️ Assure-toi que **Docker Desktop** est bien démarré sur ta machine avant de continuer.
 
 #### Étapes :
 
-1. Ouvre un terminal et place-toi à la racine du projet (`Projet_World_Cup/`).
+1. Ouvre un terminal **Bash** et place-toi à la racine du projet (`Projet_World_Cup/`).
 2. Lance le script suivant pour démarrer la base de données :
 
 ```bash
@@ -52,7 +52,7 @@ npm start
 ```
 
 
-⏳ Patiente environ 5 secondes — la base de données sera automatiquement restaurée à partir du dernier snapshot (s’il existe).
+⏳ Patiente environ 5 secondes — la base de données sera automatiquement restaurée à partir de la [dernière version de la BD.](world-cup-bd/docker/db/backup.sql)
 
 #### Pour arrêter la base proprement et sauvegarder :
 
@@ -67,7 +67,7 @@ npm start
 docker exec -it postgres-wc psql -U wcuser -d worldcupdb
 ```
 
-## 🔒 Informations pour se connecter à la base de données
+## 🔒 Informations pour se connecter à la base de données avec un IDE quelconque
 
 | Paramètre       | Valeur        |
 |------------------|---------------|
@@ -77,11 +77,11 @@ docker exec -it postgres-wc psql -U wcuser -d worldcupdb
 | **Mot de passe** | `wcpass`      |
 | **Base**         | `worldcupdb`  |
 
-## ⚠️ Astuce DBeaver (Windows)
+## ⚠️ Astuce pour probleme de connexion 
 
-> Si tu as PostgreSQL installé **localement sur ta machine Windows** (en dehors de Docker),  
+> Si tu as PostgreSQL installé **localement sur ta machine** (en dehors de Docker),  
 > il se peut qu’il utilise déjà le **port 5432**.  
-> Résultat : DBeaver essaie de se connecter au serveur local au lieu de celui dans Docker.
+> Résultat : Ta machine essaie de se connecter au serveur de ton postgresql locale au lieu de celui dans Docker.
 
 ✅ **Solution** :  
 **Arrête le service PostgreSQL local** avant de démarrer DBeaver ou de te connecter à la base Docker.
@@ -91,6 +91,9 @@ docker exec -it postgres-wc psql -U wcuser -d worldcupdb
 - Ouvre `Services` (tape `services.msc` dans la barre de recherche Windows)
 - Trouve `postgresql` ou `postgresql-x64-XX`
 - Clique droit → **Arrêter**
+
+### Autre option
+_Demande a un AI comment le faire_
 
 Tu pourras ensuite te connecter sans problème à `localhost:5432`, qui sera désormais géré par Docker 🐳
 
