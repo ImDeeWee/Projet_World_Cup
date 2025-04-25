@@ -80,7 +80,7 @@ docker exec -it postgres-wc psql -U wcuser -d worldcupdb
 ## ⚠️ Astuce pour probleme de connexion 
 
 > Si tu as PostgreSQL installé **localement sur ta machine** (en dehors de Docker),  
-> il se peut qu’il utilise déjà le **port 5432**.  
+> il se peut qu’il utilise déjà le **port 5432 et 5433**.  
 > Résultat : Ta machine essaie de se connecter au serveur de ton postgresql locale au lieu de celui dans Docker.
 
 ✅ **Solution** :  
@@ -93,9 +93,9 @@ docker exec -it postgres-wc psql -U wcuser -d worldcupdb
 - Clique droit → **Arrêter**
 
 ### Autre option
-_Demande a un AI comment le faire_
+_Demande à un AI comment le faire.
 
-Tu pourras ensuite te connecter sans problème à `localhost:5432`, qui sera désormais géré par Docker 🐳
+Tu pourras ensuite te connecter sans problème à `localhost:5433`, qui sera désormais géré par Docker 🐳
 
 ---
 
