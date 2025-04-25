@@ -53,6 +53,20 @@ CREATE TABLE public.coupedumondeinfo (
 ALTER TABLE public.coupedumondeinfo OWNER TO wcuser;
 
 --
+-- Name: equipe; Type: TABLE; Schema: public; Owner: wcuser
+--
+
+CREATE TABLE public.equipe (
+    nompays character varying(30) NOT NULL,
+    anneecoupe integer NOT NULL,
+    id_capitaine integer,
+    id_selectionneur integer
+);
+
+
+ALTER TABLE public.equipe OWNER TO wcuser;
+
+--
 -- Name: joueur; Type: TABLE; Schema: public; Owner: wcuser
 --
 
@@ -65,11 +79,58 @@ CREATE TABLE public.joueur (
     nomfamille character varying(50),
     journ integer,
     moisn integer,
-    anneen integer
+    annee integer
 );
 
 
 ALTER TABLE public.joueur OWNER TO wcuser;
+
+--
+-- Name: joueur_id_joueur_seq; Type: SEQUENCE; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE public.joueur ALTER COLUMN id_joueur ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.joueur_id_joueur_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
+
+--
+-- Name: stafftechnique; Type: TABLE; Schema: public; Owner: wcuser
+--
+
+CREATE TABLE public.stafftechnique (
+    id_staff integer NOT NULL,
+    roleequipe character varying(30),
+    nompays character varying(30) NOT NULL,
+    anneecoupe integer NOT NULL,
+    prenomstaff character varying(30),
+    nomstaff character varying(30),
+    journ integer,
+    moisn integer,
+    anneen integer
+);
+
+
+ALTER TABLE public.stafftechnique OWNER TO wcuser;
+
+--
+-- Name: stafftechnique_id_staff_seq; Type: SEQUENCE; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE public.stafftechnique ALTER COLUMN id_staff ADD GENERATED ALWAYS AS IDENTITY (
+    SEQUENCE NAME public.stafftechnique_id_staff_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1
+);
+
 
 --
 -- Data for Name: coupedumondehote; Type: TABLE DATA; Schema: public; Owner: wcuser
@@ -88,11 +149,41 @@ COPY public.coupedumondeinfo (annee, jourd, moisd, jourf, moisf) FROM stdin;
 
 
 --
+-- Data for Name: equipe; Type: TABLE DATA; Schema: public; Owner: wcuser
+--
+
+COPY public.equipe (nompays, anneecoupe, id_capitaine, id_selectionneur) FROM stdin;
+\.
+
+
+--
 -- Data for Name: joueur; Type: TABLE DATA; Schema: public; Owner: wcuser
 --
 
-COPY public.joueur (id_joueur, numero, nompays, anneecoupe, prenom, nomfamille, journ, moisn, anneen) FROM stdin;
+COPY public.joueur (id_joueur, numero, nompays, anneecoupe, prenom, nomfamille, journ, moisn, annee) FROM stdin;
 \.
+
+
+--
+-- Data for Name: stafftechnique; Type: TABLE DATA; Schema: public; Owner: wcuser
+--
+
+COPY public.stafftechnique (id_staff, roleequipe, nompays, anneecoupe, prenomstaff, nomstaff, journ, moisn, anneen) FROM stdin;
+\.
+
+
+--
+-- Name: joueur_id_joueur_seq; Type: SEQUENCE SET; Schema: public; Owner: wcuser
+--
+
+SELECT pg_catalog.setval('public.joueur_id_joueur_seq', 1, false);
+
+
+--
+-- Name: stafftechnique_id_staff_seq; Type: SEQUENCE SET; Schema: public; Owner: wcuser
+--
+
+SELECT pg_catalog.setval('public.stafftechnique_id_staff_seq', 1, false);
 
 
 --
@@ -112,6 +203,14 @@ ALTER TABLE ONLY public.coupedumondeinfo
 
 
 --
+-- Name: equipe equipe_pkey; Type: CONSTRAINT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.equipe
+    ADD CONSTRAINT equipe_pkey PRIMARY KEY (nompays, anneecoupe);
+
+
+--
 -- Name: joueur joueur_pkey; Type: CONSTRAINT; Schema: public; Owner: wcuser
 --
 
@@ -120,11 +219,43 @@ ALTER TABLE ONLY public.joueur
 
 
 --
+-- Name: stafftechnique stafftechnique_pkey; Type: CONSTRAINT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.stafftechnique
+    ADD CONSTRAINT stafftechnique_pkey PRIMARY KEY (id_staff);
+
+
+--
 -- Name: coupedumondeinfo coupedumondeinfo_annee_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
 --
 
 ALTER TABLE ONLY public.coupedumondeinfo
     ADD CONSTRAINT coupedumondeinfo_annee_fkey FOREIGN KEY (annee) REFERENCES public.coupedumondehote(annee);
+
+
+--
+-- Name: joueur fk_joueur_equipe; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.joueur
+    ADD CONSTRAINT fk_joueur_equipe FOREIGN KEY (nompays, anneecoupe) REFERENCES public.equipe(nompays, anneecoupe);
+
+
+--
+-- Name: stafftechnique fk_staff_equipe; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.stafftechnique
+    ADD CONSTRAINT fk_staff_equipe FOREIGN KEY (nompays, anneecoupe) REFERENCES public.equipe(nompays, anneecoupe);
+
+
+--
+-- Name: equipe id_equipe_selectionneur; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.equipe
+    ADD CONSTRAINT id_equipe_selectionneur FOREIGN KEY (id_selectionneur) REFERENCES public.stafftechnique(id_staff);
 
 
 --
