@@ -38,11 +38,28 @@ npm start
 
 
 
-### 3. Lancer PostgreSQL avec Docker (Assure-toi que Docker est **lancé** avant de continuer.)
+### 3. Lancer PostgreSQL avec Docker et restaurer automatiquement la dernière sauvegarde
+
+> ⚠️ Assure-toi que **Docker Desktop** est lancé avant de continuer.
+
+#### Étapes :
+
+1. Ouvre un terminal et place-toi à la racine du projet (`Projet_World_Cup/`).
+2. Lance le script suivant pour démarrer la base de données :
 
 ```bash
-docker-compose up --build
+./up.sh
 ```
+
+
+⏳ Patiente environ 5 secondes — la base de données sera automatiquement restaurée à partir du dernier snapshot (s’il existe).
+
+#### Pour arrêter la base proprement et sauvegarder :
+
+```bash
+./down.sh
+```
+
 
 ### 4. Acceder a la base depuis son terminal (L'etape precedente doit etre faite)
 
