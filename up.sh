@@ -1,12 +1,24 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -e
 
-echo "🚀 Lancement du conteneur PostgreSQL..."
+# 📂 1) Se placer dans le dossier où se trouve up.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 
-# Spécifie le chemin complet du fichier compose
-docker-compose -f world-cup-bd/docker-compose.yml up -d
+# 📄 2) Chemin vers le compose du projet
+COMPOSE_FILE="world-cup-bd/docker-compose.yml"
 
-# Attendre un peu pour que le conteneur soit prêt
-sleep 5
+echo "🔄 Pull des dernières images..."
+docker-compose -f "$COMPOSE_FILE" pull
 
-# Appeler le script de restauration avec le bon chemin
+echo "🛑 Arrêt et suppression des conteneurs existants (optionnel)"
+docker-compose -f "$COMPOSE_FILE" down
+
+echo "🚀 Démarrage en buildant et recréant tout"
+docker-compose -f "$COMPOSE_FILE" up -d --build --force-recreate
+
+echo "✅ Conteneurs up-to-date !"
+
+# (Optionnel) restauration de la base de données
+echo "🚀 Restauration de la base de données..."
 bash world-cup-bd/docker/scripts/pre-up.sh
