@@ -72,6 +72,41 @@ CREATE TYPE public.type_role_arbitre AS ENUM (
 
 ALTER TYPE public.type_role_arbitre OWNER TO wcuser;
 
+--
+-- Name: joue_check_same_year(); Type: FUNCTION; Schema: public; Owner: wcuser
+--
+
+CREATE FUNCTION public.joue_check_same_year() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    anneeA INT;
+    anneeB INT;
+BEGIN
+    -- récupérer l'année de chaque équipe
+    SELECT anneecoupe INTO anneeA
+    FROM   equipe
+    WHERE  id_equipe = NEW.id_equipeA;
+
+    SELECT anneecoupe INTO anneeB
+    FROM   equipe
+    WHERE  id_equipe = NEW.id_equipeB;
+
+    -- si l'une des deux lignes n'existe pas, FK lèvera déjà l'erreur ;
+    -- on vérifie seulement l'égalité
+    IF anneeA IS DISTINCT FROM anneeB THEN
+        RAISE EXCEPTION
+          'Les équipes % et % ne participent pas à la même édition : % vs %',
+          NEW.id_equipeA, NEW.id_equipeB, anneeA, anneeB;
+    END IF;
+
+    RETURN NEW;   -- tout est OK, on laisse passer
+END;
+$$;
+
+
+ALTER FUNCTION public.joue_check_same_year() OWNER TO wcuser;
+
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
@@ -136,6 +171,18 @@ CREATE TABLE public.coupedumondeinfo (
 ALTER TABLE public.coupedumondeinfo OWNER TO wcuser;
 
 --
+-- Name: entraine; Type: TABLE; Schema: public; Owner: wcuser
+--
+
+CREATE TABLE public.entraine (
+    staff_id integer NOT NULL,
+    id_equipe integer
+);
+
+
+ALTER TABLE public.entraine OWNER TO wcuser;
+
+--
 -- Name: equipe; Type: TABLE; Schema: public; Owner: wcuser
 --
 
@@ -143,11 +190,34 @@ CREATE TABLE public.equipe (
     nompays character varying(30) NOT NULL,
     anneecoupe integer NOT NULL,
     id_capitaine integer,
-    id_selectionneur integer
+    id_selectionneur integer,
+    id_equipe integer NOT NULL
 );
 
 
 ALTER TABLE public.equipe OWNER TO wcuser;
+
+--
+-- Name: equipe_id_equipe_seq; Type: SEQUENCE; Schema: public; Owner: wcuser
+--
+
+CREATE SEQUENCE public.equipe_id_equipe_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.equipe_id_equipe_seq OWNER TO wcuser;
+
+--
+-- Name: equipe_id_equipe_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: wcuser
+--
+
+ALTER SEQUENCE public.equipe_id_equipe_seq OWNED BY public.equipe.id_equipe;
+
 
 --
 -- Name: faute; Type: TABLE; Schema: public; Owner: wcuser
@@ -180,19 +250,32 @@ ALTER TABLE public.faute ALTER COLUMN faute_id ADD GENERATED ALWAYS AS IDENTITY 
 
 
 --
+-- Name: joue; Type: TABLE; Schema: public; Owner: wcuser
+--
+
+CREATE TABLE public.joue (
+    id_match integer NOT NULL,
+    id_equipea integer NOT NULL,
+    id_equipeb integer NOT NULL,
+    CONSTRAINT joue_check CHECK ((id_equipea <> id_equipeb))
+);
+
+
+ALTER TABLE public.joue OWNER TO wcuser;
+
+--
 -- Name: joueur; Type: TABLE; Schema: public; Owner: wcuser
 --
 
 CREATE TABLE public.joueur (
     id_joueur integer NOT NULL,
     numero integer,
-    nompays character varying(50),
-    anneecoupe integer,
     prenom character varying(50),
     nomfamille character varying(50),
     journ integer,
     moisn integer,
-    annee integer
+    annee integer,
+    id_equipe integer
 );
 
 
@@ -220,14 +303,12 @@ CREATE TABLE public.matchs (
     id_match integer NOT NULL,
     jourm integer,
     moism integer,
-    nompaysa character varying(30) NOT NULL,
-    nompaysb character varying(30) NOT NULL,
-    anneecoupe integer NOT NULL,
     rang public.type_rang NOT NULL,
     stade character varying(30) NOT NULL,
     gagnant character varying(30) NOT NULL,
     arbitreprincipal_id integer,
-    CONSTRAINT matchs_check CHECK ((((gagnant)::text = (nompaysa)::text) OR ((gagnant)::text = (nompaysb)::text))),
+    id_equipea integer,
+    id_equipeb integer,
     CONSTRAINT matchs_jourm_check CHECK (((jourm > 0) AND (jourm <= 31))),
     CONSTRAINT matchs_moism_check CHECK (((moism >= 1) AND (moism <= 12)))
 );
@@ -250,6 +331,18 @@ ALTER TABLE public.matchs ALTER COLUMN id_match ADD GENERATED ALWAYS AS IDENTITY
 
 
 --
+-- Name: possede; Type: TABLE; Schema: public; Owner: wcuser
+--
+
+CREATE TABLE public.possede (
+    equipe_id integer NOT NULL,
+    joueur_id integer NOT NULL
+);
+
+
+ALTER TABLE public.possede OWNER TO wcuser;
+
+--
 -- Name: scorefinal; Type: TABLE; Schema: public; Owner: wcuser
 --
 
@@ -269,13 +362,12 @@ ALTER TABLE public.scorefinal OWNER TO wcuser;
 CREATE TABLE public.stafftechnique (
     id_staff integer NOT NULL,
     roleequipe public.roleequipe_type,
-    nompays character varying(30) NOT NULL,
-    anneecoupe integer NOT NULL,
     prenomstaff character varying(30),
     nomstaff character varying(30),
     journ integer,
     moisn integer,
-    anneen integer
+    anneen integer,
+    id_equipe integer
 );
 
 
@@ -293,6 +385,13 @@ ALTER TABLE public.stafftechnique ALTER COLUMN id_staff ADD GENERATED ALWAYS AS 
     NO MAXVALUE
     CACHE 1
 );
+
+
+--
+-- Name: equipe id_equipe; Type: DEFAULT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.equipe ALTER COLUMN id_equipe SET DEFAULT nextval('public.equipe_id_equipe_seq'::regclass);
 
 
 --
@@ -320,10 +419,18 @@ COPY public.coupedumondeinfo (annee, jourd, moisd, jourf, moisf) FROM stdin;
 
 
 --
+-- Data for Name: entraine; Type: TABLE DATA; Schema: public; Owner: wcuser
+--
+
+COPY public.entraine (staff_id, id_equipe) FROM stdin;
+\.
+
+
+--
 -- Data for Name: equipe; Type: TABLE DATA; Schema: public; Owner: wcuser
 --
 
-COPY public.equipe (nompays, anneecoupe, id_capitaine, id_selectionneur) FROM stdin;
+COPY public.equipe (nompays, anneecoupe, id_capitaine, id_selectionneur, id_equipe) FROM stdin;
 \.
 
 
@@ -336,10 +443,18 @@ COPY public.faute (faute_id, joueur_id, match_id, typefaute, faute_minute) FROM 
 
 
 --
+-- Data for Name: joue; Type: TABLE DATA; Schema: public; Owner: wcuser
+--
+
+COPY public.joue (id_match, id_equipea, id_equipeb) FROM stdin;
+\.
+
+
+--
 -- Data for Name: joueur; Type: TABLE DATA; Schema: public; Owner: wcuser
 --
 
-COPY public.joueur (id_joueur, numero, nompays, anneecoupe, prenom, nomfamille, journ, moisn, annee) FROM stdin;
+COPY public.joueur (id_joueur, numero, prenom, nomfamille, journ, moisn, annee, id_equipe) FROM stdin;
 \.
 
 
@@ -347,7 +462,15 @@ COPY public.joueur (id_joueur, numero, nompays, anneecoupe, prenom, nomfamille, 
 -- Data for Name: matchs; Type: TABLE DATA; Schema: public; Owner: wcuser
 --
 
-COPY public.matchs (id_match, jourm, moism, nompaysa, nompaysb, anneecoupe, rang, stade, gagnant, arbitreprincipal_id) FROM stdin;
+COPY public.matchs (id_match, jourm, moism, rang, stade, gagnant, arbitreprincipal_id, id_equipea, id_equipeb) FROM stdin;
+\.
+
+
+--
+-- Data for Name: possede; Type: TABLE DATA; Schema: public; Owner: wcuser
+--
+
+COPY public.possede (equipe_id, joueur_id) FROM stdin;
 \.
 
 
@@ -363,7 +486,7 @@ COPY public.scorefinal (match_id, pointequipea, pointequipeb) FROM stdin;
 -- Data for Name: stafftechnique; Type: TABLE DATA; Schema: public; Owner: wcuser
 --
 
-COPY public.stafftechnique (id_staff, roleequipe, nompays, anneecoupe, prenomstaff, nomstaff, journ, moisn, anneen) FROM stdin;
+COPY public.stafftechnique (id_staff, roleequipe, prenomstaff, nomstaff, journ, moisn, anneen, id_equipe) FROM stdin;
 \.
 
 
@@ -372,6 +495,13 @@ COPY public.stafftechnique (id_staff, roleequipe, nompays, anneecoupe, prenomsta
 --
 
 SELECT pg_catalog.setval('public.arbitres_id_arbitre_seq', 1, false);
+
+
+--
+-- Name: equipe_id_equipe_seq; Type: SEQUENCE SET; Schema: public; Owner: wcuser
+--
+
+SELECT pg_catalog.setval('public.equipe_id_equipe_seq', 1, false);
 
 
 --
@@ -427,11 +557,19 @@ ALTER TABLE ONLY public.coupedumondeinfo
 
 
 --
+-- Name: entraine entraine_pkey; Type: CONSTRAINT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.entraine
+    ADD CONSTRAINT entraine_pkey PRIMARY KEY (staff_id);
+
+
+--
 -- Name: equipe equipe_pkey; Type: CONSTRAINT; Schema: public; Owner: wcuser
 --
 
 ALTER TABLE ONLY public.equipe
-    ADD CONSTRAINT equipe_pkey PRIMARY KEY (nompays, anneecoupe);
+    ADD CONSTRAINT equipe_pkey PRIMARY KEY (id_equipe);
 
 
 --
@@ -440,6 +578,14 @@ ALTER TABLE ONLY public.equipe
 
 ALTER TABLE ONLY public.faute
     ADD CONSTRAINT faute_pkey PRIMARY KEY (faute_id);
+
+
+--
+-- Name: joue joue_pkey; Type: CONSTRAINT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.joue
+    ADD CONSTRAINT joue_pkey PRIMARY KEY (id_match);
 
 
 --
@@ -459,6 +605,14 @@ ALTER TABLE ONLY public.matchs
 
 
 --
+-- Name: possede possede_pkey; Type: CONSTRAINT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.possede
+    ADD CONSTRAINT possede_pkey PRIMARY KEY (equipe_id, joueur_id);
+
+
+--
 -- Name: scorefinal scorefinal_pkey; Type: CONSTRAINT; Schema: public; Owner: wcuser
 --
 
@@ -475,11 +629,34 @@ ALTER TABLE ONLY public.stafftechnique
 
 
 --
+-- Name: joue trg_joue_same_year; Type: TRIGGER; Schema: public; Owner: wcuser
+--
+
+CREATE TRIGGER trg_joue_same_year BEFORE INSERT OR UPDATE ON public.joue FOR EACH ROW EXECUTE FUNCTION public.joue_check_same_year();
+
+
+--
 -- Name: coupedumondeinfo coupedumondeinfo_annee_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
 --
 
 ALTER TABLE ONLY public.coupedumondeinfo
     ADD CONSTRAINT coupedumondeinfo_annee_fkey FOREIGN KEY (annee) REFERENCES public.coupedumondehote(annee);
+
+
+--
+-- Name: entraine entraine_id_equipe_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.entraine
+    ADD CONSTRAINT entraine_id_equipe_fkey FOREIGN KEY (id_equipe) REFERENCES public.equipe(id_equipe);
+
+
+--
+-- Name: entraine entraine_staff_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.entraine
+    ADD CONSTRAINT entraine_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES public.stafftechnique(id_staff) ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 --
@@ -499,43 +676,11 @@ ALTER TABLE ONLY public.faute
 
 
 --
--- Name: joueur fk_joueur_equipe; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
---
-
-ALTER TABLE ONLY public.joueur
-    ADD CONSTRAINT fk_joueur_equipe FOREIGN KEY (nompays, anneecoupe) REFERENCES public.equipe(nompays, anneecoupe);
-
-
---
 -- Name: matchs fk_matchs_arbitre; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
 --
 
 ALTER TABLE ONLY public.matchs
     ADD CONSTRAINT fk_matchs_arbitre FOREIGN KEY (arbitreprincipal_id) REFERENCES public.arbitres(id_arbitre);
-
-
---
--- Name: matchs fk_matchs_equipea; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
---
-
-ALTER TABLE ONLY public.matchs
-    ADD CONSTRAINT fk_matchs_equipea FOREIGN KEY (nompaysa, anneecoupe) REFERENCES public.equipe(nompays, anneecoupe);
-
-
---
--- Name: matchs fk_matchs_equipeb; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
---
-
-ALTER TABLE ONLY public.matchs
-    ADD CONSTRAINT fk_matchs_equipeb FOREIGN KEY (nompaysb, anneecoupe) REFERENCES public.equipe(nompays, anneecoupe);
-
-
---
--- Name: stafftechnique fk_staff_equipe; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
---
-
-ALTER TABLE ONLY public.stafftechnique
-    ADD CONSTRAINT fk_staff_equipe FOREIGN KEY (nompays, anneecoupe) REFERENCES public.equipe(nompays, anneecoupe);
 
 
 --
@@ -547,11 +692,83 @@ ALTER TABLE ONLY public.equipe
 
 
 --
+-- Name: joue joue_id_equipea_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.joue
+    ADD CONSTRAINT joue_id_equipea_fkey FOREIGN KEY (id_equipea) REFERENCES public.equipe(id_equipe) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: joue joue_id_equipeb_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.joue
+    ADD CONSTRAINT joue_id_equipeb_fkey FOREIGN KEY (id_equipeb) REFERENCES public.equipe(id_equipe) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: joue joue_id_match_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.joue
+    ADD CONSTRAINT joue_id_match_fkey FOREIGN KEY (id_match) REFERENCES public.matchs(id_match) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: joueur joueur_id_equipe_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.joueur
+    ADD CONSTRAINT joueur_id_equipe_fkey FOREIGN KEY (id_equipe) REFERENCES public.equipe(id_equipe);
+
+
+--
+-- Name: matchs matchs_id_equipea_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.matchs
+    ADD CONSTRAINT matchs_id_equipea_fkey FOREIGN KEY (id_equipea) REFERENCES public.equipe(id_equipe);
+
+
+--
+-- Name: matchs matchs_id_equipeb_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.matchs
+    ADD CONSTRAINT matchs_id_equipeb_fkey FOREIGN KEY (id_equipeb) REFERENCES public.equipe(id_equipe);
+
+
+--
+-- Name: possede possede_equipe_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.possede
+    ADD CONSTRAINT possede_equipe_id_fkey FOREIGN KEY (equipe_id) REFERENCES public.equipe(id_equipe);
+
+
+--
+-- Name: possede possede_joueur_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.possede
+    ADD CONSTRAINT possede_joueur_id_fkey FOREIGN KEY (joueur_id) REFERENCES public.joueur(id_joueur);
+
+
+--
 -- Name: scorefinal scorefinal_match_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
 --
 
 ALTER TABLE ONLY public.scorefinal
     ADD CONSTRAINT scorefinal_match_id_fkey FOREIGN KEY (match_id) REFERENCES public.matchs(id_match);
+
+
+--
+-- Name: stafftechnique stafftechnique_id_equipe_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
+--
+
+ALTER TABLE ONLY public.stafftechnique
+    ADD CONSTRAINT stafftechnique_id_equipe_fkey FOREIGN KEY (id_equipe) REFERENCES public.equipe(id_equipe);
 
 
 --
