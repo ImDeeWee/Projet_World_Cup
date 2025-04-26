@@ -78,23 +78,23 @@ ALTER TYPE public.type_role_arbitre OWNER TO wcuser;
 
 CREATE FUNCTION public.fn_donne_verifie_arbitre_principal() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    v_role type_role_arbitre;
-BEGIN
-    SELECT rolearbitre
-      INTO v_role
-      FROM arbitres
-     WHERE id_arbitre = NEW.arbitre_id;
-
-    IF v_role IS DISTINCT FROM 'Principal' THEN
-        RAISE EXCEPTION
-          'Arbitre % n''a pas le rôle ''Principal'' (actuel = %)',
-          NEW.arbitre_id, v_role;
-    END IF;
-
-    RETURN NEW;
-END;
+    AS $$
+DECLARE
+    v_role type_role_arbitre;
+BEGIN
+    SELECT rolearbitre
+      INTO v_role
+      FROM arbitres
+     WHERE id_arbitre = NEW.arbitre_id;
+
+    IF v_role IS DISTINCT FROM 'Principal' THEN
+        RAISE EXCEPTION
+          'Arbitre % n''a pas le rôle ''Principal'' (actuel = %)',
+          NEW.arbitre_id, v_role;
+    END IF;
+
+    RETURN NEW;
+END;
 $$;
 
 
@@ -106,42 +106,42 @@ ALTER FUNCTION public.fn_donne_verifie_arbitre_principal() OWNER TO wcuser;
 
 CREATE FUNCTION public.fn_faute_gestion_cartons() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    nb_jaunes  INT;
-    existe_rouge BOOLEAN;
-BEGIN
-    /* Y a-t-il déjà un rouge pour ce joueur dans ce match ? */
-    SELECT EXISTS (
-        SELECT 1
-          FROM faute
-         WHERE joueur_id = NEW.joueur_id
-           AND match_id  = NEW.match_id
-           AND typefaute = 'Rouge'
-    ) INTO existe_rouge;
-
-    IF existe_rouge THEN
-        RAISE EXCEPTION
-          'Le joueur % a déjà un carton rouge pour le match %, insertion refusée',
-          NEW.joueur_id, NEW.match_id;
-    END IF;
-
-    /* Si l’on ajoute un jaune, faut-il le transformer en rouge ? */
-    IF NEW.typefaute = 'Jaune' THEN
-        SELECT COUNT(*)
-          INTO nb_jaunes
-          FROM faute
-         WHERE joueur_id = NEW.joueur_id
-           AND match_id  = NEW.match_id
-           AND typefaute = 'Jaune';
-
-        IF nb_jaunes >= 1 THEN   -- c’est le 2ᵉ jaune
-            NEW.typefaute := 'Rouge';
-        END IF;
-    END IF;
-
-    RETURN NEW;
-END;
+    AS $$
+DECLARE
+    nb_jaunes  INT;
+    existe_rouge BOOLEAN;
+BEGIN
+    /* Y a-t-il déjà un rouge pour ce joueur dans ce match ? */
+    SELECT EXISTS (
+        SELECT 1
+          FROM faute
+         WHERE joueur_id = NEW.joueur_id
+           AND match_id  = NEW.match_id
+           AND typefaute = 'Rouge'
+    ) INTO existe_rouge;
+
+    IF existe_rouge THEN
+        RAISE EXCEPTION
+          'Le joueur % a déjà un carton rouge pour le match %, insertion refusée',
+          NEW.joueur_id, NEW.match_id;
+    END IF;
+
+    /* Si l’on ajoute un jaune, faut-il le transformer en rouge ? */
+    IF NEW.typefaute = 'Jaune' THEN
+        SELECT COUNT(*)
+          INTO nb_jaunes
+          FROM faute
+         WHERE joueur_id = NEW.joueur_id
+           AND match_id  = NEW.match_id
+           AND typefaute = 'Jaune';
+
+        IF nb_jaunes >= 1 THEN   -- c’est le 2ᵉ jaune
+            NEW.typefaute := 'Rouge';
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
 $$;
 
 
@@ -153,58 +153,58 @@ ALTER FUNCTION public.fn_faute_gestion_cartons() OWNER TO wcuser;
 
 CREATE FUNCTION public.fn_sync_gagnant() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    v_id_a       INT;
-    v_id_b       INT;
-    v_gagnant_id INT;
-BEGIN
-    /* 1) Récupère les infos du match visé */
-    SELECT id_equipea,
-           id_equipeb,
-           gagnant_id
-      INTO v_id_a,
-           v_id_b,
-           v_gagnant_id
-      FROM matchs
-     WHERE id_match = NEW.match_id;
-
-    /* 2) Victoire de l’équipe A */
-    IF NEW.pointequipea > NEW.pointequipeb THEN
-        IF v_gagnant_id IS NULL OR v_gagnant_id = v_id_a THEN
-            UPDATE matchs
-               SET gagnant_id = v_id_a
-             WHERE id_match  = NEW.match_id;
-        ELSE
-            RAISE EXCEPTION
-              'Incohérence : gagnant_id=% mais pointequipea (%) > pointequipeb (%) pour match %',
-              v_gagnant_id, NEW.pointequipea, NEW.pointequipeb, NEW.match_id;
-        END IF;
-
-    /* 3) Victoire de l’équipe B */
-    ELSIF NEW.pointequipeb > NEW.pointequipea THEN
-        IF v_gagnant_id IS NULL OR v_gagnant_id = v_id_b THEN
-            UPDATE matchs
-               SET gagnant_id = v_id_b
-             WHERE id_match  = NEW.match_id;
-        ELSE
-            RAISE EXCEPTION
-              'Incohérence : gagnant_id=% mais pointequipeb (%) > pointequipea (%) pour match %',
-              v_gagnant_id, NEW.pointequipeb, NEW.pointequipea, NEW.match_id;
-        END IF;
-
-    /* 4) Match nul */
-    ELSE  -- NEW.pointequipea = NEW.pointequipeb
-        IF v_gagnant_id IS NOT NULL THEN
-            RAISE EXCEPTION
-              'Match nul : la colonne gagnant_id doit être NULL (match %)',
-              NEW.match_id;
-        END IF;
-        -- Rien à faire si c’est déjà NULL
-    END IF;
-
-    RETURN NEW;      -- valide l'INSERT / UPDATE sur scorefinal
-END;
+    AS $$
+DECLARE
+    v_id_a       INT;
+    v_id_b       INT;
+    v_gagnant_id INT;
+BEGIN
+    /* 1) Récupère les infos du match visé */
+    SELECT id_equipea,
+           id_equipeb,
+           gagnant_id
+      INTO v_id_a,
+           v_id_b,
+           v_gagnant_id
+      FROM matchs
+     WHERE id_match = NEW.match_id;
+
+    /* 2) Victoire de l’équipe A */
+    IF NEW.pointequipea > NEW.pointequipeb THEN
+        IF v_gagnant_id IS NULL OR v_gagnant_id = v_id_a THEN
+            UPDATE matchs
+               SET gagnant_id = v_id_a
+             WHERE id_match  = NEW.match_id;
+        ELSE
+            RAISE EXCEPTION
+              'Incohérence : gagnant_id=% mais pointequipea (%) > pointequipeb (%) pour match %',
+              v_gagnant_id, NEW.pointequipea, NEW.pointequipeb, NEW.match_id;
+        END IF;
+
+    /* 3) Victoire de l’équipe B */
+    ELSIF NEW.pointequipeb > NEW.pointequipea THEN
+        IF v_gagnant_id IS NULL OR v_gagnant_id = v_id_b THEN
+            UPDATE matchs
+               SET gagnant_id = v_id_b
+             WHERE id_match  = NEW.match_id;
+        ELSE
+            RAISE EXCEPTION
+              'Incohérence : gagnant_id=% mais pointequipeb (%) > pointequipea (%) pour match %',
+              v_gagnant_id, NEW.pointequipeb, NEW.pointequipea, NEW.match_id;
+        END IF;
+
+    /* 4) Match nul */
+    ELSE  -- NEW.pointequipea = NEW.pointequipeb
+        IF v_gagnant_id IS NOT NULL THEN
+            RAISE EXCEPTION
+              'Match nul : la colonne gagnant_id doit être NULL (match %)',
+              NEW.match_id;
+        END IF;
+        -- Rien à faire si c’est déjà NULL
+    END IF;
+
+    RETURN NEW;      -- valide l'INSERT / UPDATE sur scorefinal
+END;
 $$;
 
 
@@ -216,64 +216,64 @@ ALTER FUNCTION public.fn_sync_gagnant() OWNER TO wcuser;
 
 CREATE FUNCTION public.fn_verifie_roles_arbitres() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    r_principal  type_role_arbitre;
-    r_assist1    type_role_arbitre;
-    r_assist2    type_role_arbitre;
-    r_assist3    type_role_arbitre;
-BEGIN
-    /* 2-a ► mêmes arbitres plusieurs fois ? */
-    IF NEW.arbitre_principal_id IN (NEW.arbitre_secondaire1_id,
-                                    NEW.arbitre_secondaire2_id,
-                                    NEW.arbitre_secondaire3_id)
-       OR NEW.arbitre_secondaire1_id IS NOT NULL
-          AND NEW.arbitre_secondaire1_id IN (NEW.arbitre_secondaire2_id,
-                                             NEW.arbitre_secondaire3_id)
-       OR NEW.arbitre_secondaire2_id IS NOT NULL
-          AND NEW.arbitre_secondaire2_id = NEW.arbitre_secondaire3_id
-    THEN
-        RAISE EXCEPTION
-          'Le même arbitre ne peut pas être assigné plus d’une fois pour le match %',
-          NEW.match_id;
-    END IF;
-
-    /* 2-b ► rôles conformes ? */
-    SELECT rolearbitre INTO r_principal
-      FROM arbitres WHERE id_arbitre = NEW.arbitre_principal_id;
-
-    IF r_principal IS DISTINCT FROM 'Principal' THEN
-        RAISE EXCEPTION
-          'L’’arbitre % doit avoir le rôle Principal (actuel = %)',
-          NEW.arbitre_principal_id, r_principal;
-    END IF;
-
-    SELECT rolearbitre INTO r_assist1
-      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire1_id;
-    IF r_assist1 IS DISTINCT FROM 'Assistant' THEN
-        RAISE EXCEPTION
-          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
-          NEW.arbitre_secondaire1_id, r_assist1;
-    END IF;
-
-    SELECT rolearbitre INTO r_assist2
-      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire2_id;
-    IF r_assist2 IS DISTINCT FROM 'Assistant' THEN
-        RAISE EXCEPTION
-          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
-          NEW.arbitre_secondaire2_id, r_assist2;
-    END IF;
-
-    SELECT rolearbitre INTO r_assist3
-      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire3_id;
-    IF r_assist3 IS DISTINCT FROM 'Assistant' THEN
-        RAISE EXCEPTION
-          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
-          NEW.arbitre_secondaire3_id, r_assist3;
-    END IF;
-
-    RETURN NEW;                -- validation réussie
-END;
+    AS $$
+DECLARE
+    r_principal  type_role_arbitre;
+    r_assist1    type_role_arbitre;
+    r_assist2    type_role_arbitre;
+    r_assist3    type_role_arbitre;
+BEGIN
+    /* 2-a ► mêmes arbitres plusieurs fois ? */
+    IF NEW.arbitre_principal_id IN (NEW.arbitre_secondaire1_id,
+                                    NEW.arbitre_secondaire2_id,
+                                    NEW.arbitre_secondaire3_id)
+       OR NEW.arbitre_secondaire1_id IS NOT NULL
+          AND NEW.arbitre_secondaire1_id IN (NEW.arbitre_secondaire2_id,
+                                             NEW.arbitre_secondaire3_id)
+       OR NEW.arbitre_secondaire2_id IS NOT NULL
+          AND NEW.arbitre_secondaire2_id = NEW.arbitre_secondaire3_id
+    THEN
+        RAISE EXCEPTION
+          'Le même arbitre ne peut pas être assigné plus d’une fois pour le match %',
+          NEW.match_id;
+    END IF;
+
+    /* 2-b ► rôles conformes ? */
+    SELECT rolearbitre INTO r_principal
+      FROM arbitres WHERE id_arbitre = NEW.arbitre_principal_id;
+
+    IF r_principal IS DISTINCT FROM 'Principal' THEN
+        RAISE EXCEPTION
+          'L’’arbitre % doit avoir le rôle Principal (actuel = %)',
+          NEW.arbitre_principal_id, r_principal;
+    END IF;
+
+    SELECT rolearbitre INTO r_assist1
+      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire1_id;
+    IF r_assist1 IS DISTINCT FROM 'Assistant' THEN
+        RAISE EXCEPTION
+          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
+          NEW.arbitre_secondaire1_id, r_assist1;
+    END IF;
+
+    SELECT rolearbitre INTO r_assist2
+      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire2_id;
+    IF r_assist2 IS DISTINCT FROM 'Assistant' THEN
+        RAISE EXCEPTION
+          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
+          NEW.arbitre_secondaire2_id, r_assist2;
+    END IF;
+
+    SELECT rolearbitre INTO r_assist3
+      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire3_id;
+    IF r_assist3 IS DISTINCT FROM 'Assistant' THEN
+        RAISE EXCEPTION
+          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
+          NEW.arbitre_secondaire3_id, r_assist3;
+    END IF;
+
+    RETURN NEW;                -- validation réussie
+END;
 $$;
 
 
@@ -285,30 +285,30 @@ ALTER FUNCTION public.fn_verifie_roles_arbitres() OWNER TO wcuser;
 
 CREATE FUNCTION public.joue_check_same_year() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    anneeA INT;
-    anneeB INT;
-BEGIN
-    -- récupérer l'année de chaque équipe
-    SELECT anneecoupe INTO anneeA
-    FROM   equipe
-    WHERE  id_equipe = NEW.id_equipeA;
-
-    SELECT anneecoupe INTO anneeB
-    FROM   equipe
-    WHERE  id_equipe = NEW.id_equipeB;
-
-    -- si l'une des deux lignes n'existe pas, FK lèvera déjà l'erreur ;
-    -- on vérifie seulement l'égalité
-    IF anneeA IS DISTINCT FROM anneeB THEN
-        RAISE EXCEPTION
-          'Les équipes % et % ne participent pas à la même édition : % vs %',
-          NEW.id_equipeA, NEW.id_equipeB, anneeA, anneeB;
-    END IF;
-
-    RETURN NEW;   -- tout est OK, on laisse passer
-END;
+    AS $$
+DECLARE
+    anneeA INT;
+    anneeB INT;
+BEGIN
+    -- récupérer l'année de chaque équipe
+    SELECT anneecoupe INTO anneeA
+    FROM   equipe
+    WHERE  id_equipe = NEW.id_equipeA;
+
+    SELECT anneecoupe INTO anneeB
+    FROM   equipe
+    WHERE  id_equipe = NEW.id_equipeB;
+
+    -- si l'une des deux lignes n'existe pas, FK lèvera déjà l'erreur ;
+    -- on vérifie seulement l'égalité
+    IF anneeA IS DISTINCT FROM anneeB THEN
+        RAISE EXCEPTION
+          'Les équipes % et % ne participent pas à la même édition : % vs %',
+          NEW.id_equipeA, NEW.id_equipeB, anneeA, anneeB;
+    END IF;
+
+    RETURN NEW;   -- tout est OK, on laisse passer
+END;
 $$;
 
 
@@ -591,28 +591,24 @@ CREATE TABLE public.scorefinal (
 ALTER TABLE public.scorefinal OWNER TO wcuser;
 
 --
--- Name: stafftechnique; Type: TABLE; Schema: public; Owner: wcuser
+-- Name: selectionneur; Type: TABLE; Schema: public; Owner: wcuser
 --
 
-CREATE TABLE public.stafftechnique (
+CREATE TABLE public.selectionneur (
     id_staff integer NOT NULL,
-    roleequipe public.roleequipe_type,
     prenomstaff character varying(30),
     nomstaff character varying(30),
-    journ integer,
-    moisn integer,
-    anneen integer,
     id_equipe integer
 );
 
 
-ALTER TABLE public.stafftechnique OWNER TO wcuser;
+ALTER TABLE public.selectionneur OWNER TO wcuser;
 
 --
 -- Name: stafftechnique_id_staff_seq; Type: SEQUENCE; Schema: public; Owner: wcuser
 --
 
-ALTER TABLE public.stafftechnique ALTER COLUMN id_staff ADD GENERATED ALWAYS AS IDENTITY (
+ALTER TABLE public.selectionneur ALTER COLUMN id_staff ADD GENERATED ALWAYS AS IDENTITY (
     SEQUENCE NAME public.stafftechnique_id_staff_seq
     START WITH 1
     INCREMENT BY 1
@@ -634,6 +630,1415 @@ ALTER TABLE ONLY public.equipe ALTER COLUMN id_equipe SET DEFAULT nextval('publi
 --
 
 COPY public.arbitres (id_arbitre, rolearbitre, prenom, nom) FROM stdin;
+1	Principal	Thomas	Balvay
+2	Principal	Henri	Christophe
+3	Principal	Gilberto	de Almeida Rego
+4	Principal	John	Langenus
+5	Principal	Domingo	Lombardi
+6	Principal	Jose	Macias
+7	Principal	Francisco	Mateucci
+8	Principal	Ulises	Saucedo
+9	Principal	Anibal	Tejada
+10	Principal	Ricardo	Vallarino
+11	Principal	Alberto	Warnken
+12	Principal	Louis	Baert
+13	Principal	Rinaldo	Barlassina
+14	Principal	Alois	Beranek
+15	Principal	Alfred	Birlem
+16	Principal	Eugen	Braun
+17	Principal	Albino	Carraro
+18	Principal	Ivan	Eklind
+19	Principal	Francesco	Mattea
+20	Principal	Rene	Mercet
+21	Principal	Johannes	van Moorsel
+22	Principal	Georges	Capdeville
+23	Principal	Roger	Conrie
+24	Principal	Augustin	Krist
+25	Principal	Lucien	Leclerq
+26	Principal	Giuseppe	Scarpi
+27	Principal	Pal	von Hertzka
+28	Principal	Hans	Wuthrich
+29	Principal	Ramon	Azon Roma
+30	Principal	Generoso	Dattilo
+31	Principal	Arthur Edward	Ellis
+32	Principal	Giovanni	Galeati
+33	Principal	Mario	Gardelli
+34	Principal	Sandy	Griffiths
+35	Principal	Reginald	Leafe
+36	Principal	Jean	Lutz
+37	Principal	Alberto	Malcher
+38	Principal	George	Mitchell
+39	Principal	George	Reader
+40	Principal	Karel	van der Meer
+41	Principal	Mario	Vianna
+42	Principal	Manuel	Asensi
+43	Principal	Jose	da Costa Vieira
+44	Principal	Charlie	Faultless
+45	Principal	Laurent	Franken
+46	Principal	William	Ling
+47	Principal	Esteban	Marino
+48	Principal	Vincenzo	Orlandini
+49	Principal	Emil	Schmetzer
+50	Principal	Vasa	Stefanovic
+51	Principal	Carl Erich	Steiner
+52	Principal	Raymond	Vincenti
+53	Principal	Raymond	Wyssling
+54	Principal	Istvan	Zsolt
+55	Principal	Sten	Ahlner
+56	Principal	Jan	Bronkhorst
+57	Principal	Joaquim	Campos
+58	Principal	Jose Maria	Codesal
+59	Principal	Albert	Dusch
+60	Principal	Arne	Eriksson
+61	Principal	Juan	Garay Gardeazabal
+62	Principal	Maurice	Guigue
+63	Principal	Carl	Jrgensen
+64	Principal	Leo	Lemesic
+65	Principal	Nikolai	Levnikov
+66	Principal	Martin	Macko
+67	Principal	Jack	Mowat
+68	Principal	Juan	Regis Brozzi
+69	Principal	Fritz	Seipelt
+70	Principal	Lucien	van Nuffel
+71	Principal	Kenneth	Aston
+72	Principal	Antoine	Blavier
+73	Principal	Sergio	Bustamante
+74	Principal	Bobby	Davidson
+75	Principal	Gottfried	Dienst
+76	Principal	Andor	Dorogi
+77	Principal	Joao	Etzel Filho
+78	Principal	Karol	Galba
+79	Principal	Leo	Horn
+80	Principal	Cesare	Jonni
+81	Principal	Carlos	Robles
+82	Principal	Pierre	Schwinte
+83	Principal	Branko	Tesanic
+84	Principal	Arturo	Yamasaki Maldonado
+85	Principal	John	Adair
+86	Principal	Menachem	Ashkenazi
+87	Principal	Tofiq	Bahramov
+88	Principal	Leo	Callaghan
+89	Principal	Ken	Dagnall
+90	Principal	Jim	Finney
+91	Principal	Roberto	Goicoechea
+92	Principal	Ali	Kandil
+93	Principal	Rudolf	Kreitlein
+94	Principal	Concetto	Lo Bello
+95	Principal	Bertil	Loow
+96	Principal	Armando	Marques
+97	Principal	George	McCabe
+98	Principal	Hugh	Phillips
+99	Principal	Dimitar	Rumenchev
+100	Principal	Kurt	Tschenscher
+101	Principal	Konstantin	Zecevic
+102	Principal	Abel	Aguilar Elizalde
+103	Principal	Ramon	Barreto Ruiz
+104	Principal	Diego	De Leo
+105	Principal	Rudi	Glockner
+106	Principal	Rafael	Hormazabal Diaz
+107	Principal	Abraham	Klein
+108	Principal	Henry	Landauer
+109	Principal	Vital	Loraux
+110	Principal	Roger	Machin
+111	Principal	Ferdinand	Marschall
+112	Principal	Angel	Norberto Coerezza
+113	Principal	Jose Maria	Ortiz de Mendibil
+114	Principal	Andrei	Radulescu
+115	Principal	Antonio	Ribeiro Saldanha
+116	Principal	Antonio	Sbardella
+117	Principal	Rudolf	Scheurer
+118	Principal	Seyoum	Tarekegn
+119	Principal	Jack	Taylor
+120	Principal	Laurens	van Ravens
+121	Principal	Ayrton	Vieira de Moraes
+122	Principal	Aurelio	Angonese
+123	Principal	Dogan	Babacan
+124	Principal	Tony	Boskovic
+125	Principal	Omar	Delgado Gomez
+126	Principal	Alfonso	Gonzalez Archundia
+127	Principal	Pavel	Kazakov
+128	Principal	Erich	Linemayr
+129	Principal	Vicente	Llobregat
+130	Principal	Mahmoud	Mustafa Kamel
+131	Principal	Youssou	N'Diaye
+132	Principal	Jafar	Namdar
+133	Principal	Karoly	Palotai
+134	Principal	Edison	Perez Nunez
+135	Principal	Luis	Pestarino
+136	Principal	Nicolae	Rainea
+137	Principal	Pablo	Sanchez Ibanez
+138	Principal	Gerhard	Schulenburg
+139	Principal	Govindasamy	Suppiah
+140	Principal	Clive	Thomas
+141	Principal	Arie	van Gemert
+142	Principal	Hans-Joachim	Weyland
+143	Principal	Werner	Winsemann
+144	Principal	Ferdinand	Biwersi
+145	Principal	Farouk	Bouzo
+146	Principal	Arnaldo Cezar	Coelho
+147	Principal	Charles	Corver
+148	Principal	Jean	Dubach
+149	Principal	Ulf	Eriksson
+150	Principal	Antonio	Garrido
+151	Principal	Sergio	Gonella
+152	Principal	John	Gordon
+153	Principal	Cesar	Guerrero Orosco
+154	Principal	Alojzy	Jarguz
+155	Principal	Dusan	Maksimovic
+156	Principal	Angel Franco	Martinez
+157	Principal	Pat	Partridge
+158	Principal	Adolf	Prokop
+159	Principal	Francis	Rion
+160	Principal	Juan	Silvagno Cavanna
+161	Principal	Robert	Wurtz
+162	Principal	Ibrahim Youssef	Al-Doy
+163	Principal	Yousef	Alghoul
+164	Principal	Gilberto	Aristizabal
+165	Principal	Luis	Barrancos
+166	Principal	Juan Daniel	Cardellino
+167	Principal	Paolo	Casarin
+168	Principal	Gaston	Castro
+169	Principal	Tam Sun	Chan
+170	Principal	Vojtech	Christov
+171	Principal	Bogdan	Dotchev
+172	Principal	Benjamin	Dwomoh
+173	Principal	Walter	Eschweiler
+174	Principal	Erik	Fredriksson
+175	Principal	Bruno	Galler
+176	Principal	Arturo	Ithurralde
+177	Principal	Enrique	Labo Revoredo
+178	Principal	Belaid	Lacarne
+179	Principal	Augusto	Lamo Castillo
+180	Principal	Henning	Lund-Srensen
+181	Principal	Damir	Matovinovic
+182	Principal	Romulo	Mendez
+183	Principal	Malcolm	Moffat
+184	Principal	Hector	Ortiz
+185	Principal	Luis	Paulino Siles
+186	Principal	Alexis	Ponnet
+187	Principal	David	Socha
+188	Principal	Myroslav	Stupar
+189	Principal	Bob	Valentine
+190	Principal	Michel	Vautrot
+191	Principal	Mario Rubio	Vazquez
+192	Principal	Clive	White
+193	Principal	Franz	Wohrer
+194	Principal	Luigi	Agnolin
+195	Principal	Fallaj	Al-Shanar
+196	Principal	Jamal	Al-Sharif
+197	Principal	Romualdo	Arppi Filho
+198	Principal	Chris	Bambridge
+199	Principal	Ali	Bin Nasser
+200	Principal	Horst	Brummeier
+201	Principal	Valeri	Butenko
+202	Principal	George	Courtney
+203	Principal	Andre	Daina
+204	Principal	Jesus	Diaz
+205	Principal	Carlos	Esposito
+206	Principal	Gabriel	Gonzalez
+207	Principal	Ioan	Igna
+208	Principal	Jan	Keizer
+209	Principal	Siegfried	Kirschen
+210	Principal	Antonio	Marquez Ramirez
+211	Principal	Jose Luis	Martinez Bazan
+212	Principal	Lajos	Nemeth
+213	Principal	Zoran	Petrovic
+214	Principal	Edwin	Picon-Ackong
+215	Principal	Joel	Quiniou
+216	Principal	Volker	Roth
+217	Principal	Victoriano	Sanchez Arminio
+218	Principal	Hernan	Silva
+219	Principal	Carlos	Silva Valente
+220	Principal	Alan	Snoddy
+221	Principal	Shizuo	Takada
+222	Principal	Idrissa	Traore
+223	Principal	Berny	Ulloa Morera
+224	Principal	Edgardo	Codesal
+225	Principal	Elias	Jacome
+226	Principal	Neji	Jouini
+227	Principal	Helmut	Kohl
+228	Principal	Tullio	Lanese
+229	Principal	Juan Carlos	Loustau
+230	Principal	Carlos	Maciel
+231	Principal	Vincent	Mauro
+232	Principal	Peter	Mikkelsen
+233	Principal	Kurt	Rothlisberger
+234	Principal	Aron	Schmidhuber
+235	Principal	George	Smith
+236	Principal	Emilio	Soriano Aladren
+237	Principal	Alexey	Spirin
+238	Principal	Marcel	van Langenhove
+239	Principal	Jose Roberto	Wright
+240	Principal	Fethi	Boucetta
+241	Principal	Salvador	Imperatore
+242	Principal	Jun	Lu
+243	Principal	Jim	McCluskey
+244	Principal	Vassilios	Nikakis
+245	Principal	Rafael	Rodriguez Medina
+246	Principal	Gyanu Raja	Shrestha
+247	Principal	John	Toro Rendon
+248	Principal	Claudia	Vasconcelos
+249	Principal	Omer	Yengo
+250	Principal	Vadim	Zhuk
+251	Principal	Arturo	Angeles
+252	Principal	Rodrigo	Badilla
+253	Principal	Fabio	Baldas
+254	Principal	Arturo	Brizio Carter
+255	Principal	Ali	Bujsaim
+256	Principal	Filippi	Cavani
+257	Principal	Manuel	Diaz Vega
+258	Principal	Philip	Don
+259	Principal	Bo	Karlsson
+260	Principal	Hellmut	Krug
+261	Principal	Francisco Oscar	Lamolina
+262	Principal	Kee Chong	Lim
+263	Principal	Renato	Marsiglia
+264	Principal	Leslie	Mottram
+265	Principal	Pierluigi	Pairetto
+266	Principal	Sandor	Puhl
+267	Principal	Alberto	Tejada Noriega
+268	Principal	Jose	Torres Cadena
+269	Principal	Mario	van der Ende
+270	Principal	Linda May	Black
+271	Principal	Engage	Camara
+272	Principal	Sonia	Denoncourt
+273	Principal	Eduardo	Gamboa
+274	Principal	Alain	Hamer
+275	Principal	Catherine Leann	Hepburn
+276	Principal	Ingrid	Jonsson
+277	Principal	Petros	Mathabela
+278	Principal	Eva	Odlund
+279	Principal	Maria Edilene	Siqueira
+280	Principal	Bente	Skogvang
+281	Principal	Pirom	Un-prasert
+282	Principal	Gamal	Al-Ghandour
+283	Principal	Esfandiar	Baharmast
+284	Principal	Marc	Batta
+285	Principal	Said	Belqola
+286	Principal	Gunter	Benko
+287	Principal	Lucien	Bouchardeau
+288	Principal	Javier	Castrilli
+289	Principal	Pierluigi	Collina
+290	Principal	Hugh	Dallas
+291	Principal	Paul	Durkin
+292	Principal	Jose Maria	Garcia-Aranda
+293	Principal	Epifanio	Gonzalez
+294	Principal	Bernd	Heynemann
+295	Principal	Eddie	Lennie
+296	Principal	Ian	McLeod
+297	Principal	Urs	Meier
+298	Principal	Vitor	Melo Pereira
+299	Principal	Kim Milton	Nielsen
+300	Principal	Masayoshi	Okada
+301	Principal	Rune	Pedersen
+302	Principal	Abdul	Rahman Al-Zeid
+303	Principal	Ramesh	Ramdhan
+304	Principal	Marcio	Rezende de Freitas
+305	Principal	Mario	Sanchez Yanten
+306	Principal	Laszlo	Vagner
+307	Principal	Ryszard	Wojcik
+308	Principal	Bola Elizabeth	Abidoye
+309	Principal	Marisela	Contreras
+310	Principal	Katriina	Elovirta
+311	Principal	Fatou	Gaye
+312	Principal	Elke	Gunthner
+313	Principal	Sandra	Hunt
+314	Principal	Eun-ju	Im
+315	Principal	Gitte	Nielsen
+316	Principal	Tammy	Ogston
+317	Principal	Martha Liliana	Pardo
+318	Principal	Nicole	Petignat
+319	Principal	Kari	Seitz
+320	Principal	Virginia	Tovar
+321	Principal	Xiudi	Zuo
+322	Principal	Ubaldo	Aquino
+323	Principal	Carlos Alberto	Batres
+324	Principal	Coffi	Codjia
+325	Principal	Mourad	Daami
+326	Principal	Anders	Frisk
+327	Principal	Mohamed	Guezzaz
+328	Principal	Brian	Hall
+329	Principal	Terje	Hauge
+330	Principal	Toru	Kamikawa
+331	Principal	Young-joo	Kim
+332	Principal	Antonio	Lopez Nieto
+333	Principal	Saad	Mane
+334	Principal	William	Mattus
+335	Principal	Markus	Merk
+336	Principal	Lubos	Michel
+337	Principal	Byron	Moreno
+338	Principal	Falla	N'Doye
+339	Principal	Rene	Ortube
+340	Principal	Graham	Poll
+341	Principal	Peter	Prendergast
+342	Principal	Felipe	Ramos
+343	Principal	Oscar	Ruiz
+344	Principal	Angel	Sanchez
+345	Principal	Mark	Shield
+346	Principal	Carlos Eugenio	Simon
+347	Principal	Kyros	Vassaras
+348	Principal	Gilles	Veissiere
+349	Principal	Jan	Wegereef
+350	Principal	Xonam	Agboyi
+351	Principal	Cristina	Ionescu
+352	Principal	Florencia	Romano
+353	Principal	Sueli	Tortura
+354	Principal	Dongqing	Zhang
+355	Principal	Essam	Abdel-Fatah
+356	Principal	Carlos	Amarilla
+357	Principal	Benito	Archundia
+358	Principal	Massimo	Busacca
+359	Principal	Frank	De Bleeckere
+360	Principal	Horacio	Elizondo
+361	Principal	Valentin	Ivanov
+362	Principal	Jorge	Larrionda
+363	Principal	Shamsul	Maidin
+364	Principal	Luis	Medina Cantalejo
+365	Principal	Eric	Poulat
+366	Principal	Marco Antonio	Rodriguez
+367	Principal	Roberto	Rosetti
+368	Principal	Christine	Beck
+369	Principal	Jennifer	Bennett
+370	Principal	Adriana	Correa
+371	Principal	Dagmar	Damkova
+372	Principal	Dianne	Ferreira-James
+373	Principal	Gyongyi	Gaal
+374	Principal	Pannipar	Kamnueng
+375	Principal	Huijun	Niu
+376	Principal	Mayumi	Oiwa
+377	Principal	Jenny	Palmqvist
+378	Principal	Khalil	Al-Ghamdi
+379	Principal	Hector	Baldassi
+380	Principal	Olegario	Benquerenca
+381	Principal	Koman	Coulibaly
+382	Principal	Jerome	Damon
+383	Principal	Michael	Hester
+384	Principal	Ravshan	Irmatov
+385	Principal	Viktor	Kassai
+386	Principal	Stephane	Lannoy
+387	Principal	Eddy	Maillet
+388	Principal	Yuichi	Nishimura
+389	Principal	Pablo	Pozo
+390	Principal	Wolfgang	Stark
+391	Principal	Alberto	Undiano Mallenco
+392	Principal	Howard	Webb
+393	Principal	Quetzalli	Alvarado
+394	Principal	Estela	Alvarez
+395	Principal	Sung-mi	Cha
+396	Principal	Carol Anne	Chenard
+397	Principal	Etsuko	Fukano
+398	Principal	Kirsi	Heikkinen
+399	Principal	Jacqui	Melksham
+400	Principal	Therese	Neguel
+401	Principal	Christina	Pedersen
+402	Principal	Silvia	Reyes
+403	Principal	Bibiana	Steinhaus
+404	Principal	Finau	Vulivuli
+405	Principal	Joel	Aguilar
+406	Principal	Felix	Brych
+407	Principal	Cuneyt	Cakr
+408	Principal	Noumandiez	Doue
+409	Principal	Jonas	Eriksson
+410	Principal	Bakary	Gassama
+411	Principal	Mark	Geiger
+412	Principal	Djamel	Haimoudi
+413	Principal	Bjorn	Kuipers
+414	Principal	Milorad	Mazic
+415	Principal	Peter	O'Leary
+416	Principal	Enrique	Osses
+417	Principal	Nestor	Pitana
+418	Principal	Pedro	Proenca
+419	Principal	Sandro	Ricci
+420	Principal	Nicola	Rizzoli
+421	Principal	Wilmar	Roldan
+422	Principal	Nawaf	Shukralla
+423	Principal	Carlos	Velasco Carballo
+424	Principal	Carlos	Vera
+425	Principal	Ben	Williams
+426	Principal	Teodora	Albon
+427	Principal	Melissa	Borjas
+428	Principal	Salome	di Iorio
+429	Principal	Margaret	Domka
+430	Principal	Stephanie	Frappart
+431	Principal	Rita	Gani
+432	Principal	Anna-Marie	Keighley
+433	Principal	Katalin	Kulcsar
+434	Principal	Pernilla	Larsson
+435	Principal	Gladys	Lengwe
+436	Principal	Yeimy	Martinez
+437	Principal	Efthalia	Mitsi
+438	Principal	Kateryna	Monzul
+439	Principal	Liang	Qin
+440	Principal	Hyang-ok	Ri
+441	Principal	Esther	Staubli
+442	Principal	Claudia	Umpierrez
+443	Principal	Lucila	Venegas
+444	Principal	Carina	Vitulano
+445	Principal	Sachiko	Yamagishi
+446	Principal	Enrique	Caceres
+447	Principal	Matthew	Conger
+448	Principal	Andres	Cunha
+449	Principal	Malang	Diedhiou
+450	Principal	Alireza	Faghani
+451	Principal	Gehad	Grisha
+452	Principal	Mohammed Abdulla	Hassan Mohamed
+453	Principal	Sergei	Karasev
+454	Principal	Szymon	Marciniak
+455	Principal	Jair	Marrufo
+456	Principal	Antonio	Mateu Lahoz
+457	Principal	Cesar Arturo	Ramos
+458	Principal	Gianluca	Rocchi
+459	Principal	Janny	Sikazwe
+460	Principal	Damir	Skomina
+461	Principal	Clement	Turpin
+462	Principal	Jana	Adamkova
+463	Principal	Edina	Alves Batista
+464	Principal	Marie-Soleil	Beaudoin
+465	Principal	Sandra	Braz
+466	Principal	Maria	Carvajal
+467	Principal	Laura	Fortunato
+468	Principal	Riem	Hussein
+469	Principal	Kate	Jacewicz
+470	Principal	Salima	Mukansanga
+471	Principal	Anastasia	Pustovoitova
+472	Principal	Casey	Reibelt
+473	Principal	Lidya	Tafesse
+474	Principal	Yoshimi	Yamashita
+475	Principal	Abdulrahman	Al-Jassim
+476	Principal	Ivan	Barton
+477	Principal	Chris	Beath
+478	Principal	Raphael	Claus
+479	Principal	Ismail	Elfath
+480	Principal	Mario	Escobar
+481	Principal	Mustapha	Ghorbal
+482	Principal	Victor	Gomes
+483	Principal	Danny	Makkelie
+484	Principal	Andres	Matonte
+485	Principal	Michael	Oliver
+486	Principal	Daniele	Orsato
+487	Principal	Fernando	Rapallini
+488	Principal	Wilton	Sampaio
+489	Principal	Daniel	Siebert
+490	Principal	Anthony	Taylor
+491	Principal	Facundo	Tello
+492	Principal	Jesus	Valenzuela
+493	Principal	Slavko	Vincic
+494	Assistant	Joshua	Vargas
+495	Assistant	Samuel	Richardson
+496	Assistant	Stacey	Johnson
+497	Assistant	Troy	King
+498	Assistant	Elizabeth	Cook
+499	Assistant	Joshua	Abbott
+500	Assistant	Daniel	Hunter
+501	Assistant	Anthony	Pugh
+502	Assistant	Nancy	King
+503	Assistant	Elizabeth	Gonzales
+504	Assistant	Michael	Jones
+505	Assistant	Ernest	Roberts
+506	Assistant	Melvin	Carroll
+507	Assistant	Matthew	Freeman
+508	Assistant	Christopher	Valentine
+509	Assistant	Charles	Cunningham
+510	Assistant	Jason	Larson
+511	Assistant	Brian	Forbes
+512	Assistant	Elizabeth	Jones
+513	Assistant	Shawn	Dean
+514	Assistant	Desiree	Jackson
+515	Assistant	Charles	Castillo
+516	Assistant	Roberto	Stewart
+517	Assistant	Brian	Ayala
+518	Assistant	Carla	Haney
+519	Assistant	Amanda	Cox
+520	Assistant	Robert	Guerrero
+521	Assistant	Robert	Edwards
+522	Assistant	Susan	Bryant
+523	Assistant	Bradley	Rodriguez
+524	Assistant	Ann	Allen
+525	Assistant	John	Moran
+526	Assistant	Christopher	Ramos
+527	Assistant	Paul	Jackson
+528	Assistant	Katelyn	Vazquez
+529	Assistant	Timothy	Webb
+530	Assistant	Adam	Hood
+531	Assistant	Jennifer	Espinoza
+532	Assistant	Benjamin	Griffin
+533	Assistant	Stephen	Nichols
+534	Assistant	Daisy	Horn
+535	Assistant	Christie	Cohen
+536	Assistant	Theresa	Burns
+537	Assistant	Felicia	Bates
+538	Assistant	Sheri	Hanson
+539	Assistant	Brenda	Hunter
+540	Assistant	Regina	Davis
+541	Assistant	Victoria	Bennett
+542	Assistant	Karen	Allen
+543	Assistant	Sarah	Greer
+544	Assistant	Carmen	Cook
+545	Assistant	Michael	Simmons
+546	Assistant	Wendy	Lutz
+547	Assistant	Robert	Bailey
+548	Assistant	Joshua	Moss
+549	Assistant	Jennifer	Peters
+550	Assistant	David	Weaver
+551	Assistant	Donald	Ruiz
+552	Assistant	Michael	Parks
+553	Assistant	Spencer	Wiley
+554	Assistant	Daniel	Johnson
+555	Assistant	Kevin	Odonnell
+556	Assistant	David	Downs
+557	Assistant	Karina	Ball
+558	Assistant	Sara	Thomas
+559	Assistant	Ronald	Howard
+560	Assistant	Robert	White
+561	Assistant	Melissa	Warren
+562	Assistant	Brenda	Morgan
+563	Assistant	Gina	Morton
+564	Assistant	Christopher	Coffey
+565	Assistant	Amber	Young
+566	Assistant	Courtney	Rodriguez
+567	Assistant	Alex	Crawford
+568	Assistant	Michael	Horton
+569	Assistant	Vernon	Clark
+570	Assistant	Lee	Howell
+571	Assistant	Jillian	Parker
+572	Assistant	Ashley	Thompson
+573	Assistant	Angela	Ruiz
+574	Assistant	Andrew	Franco
+575	Assistant	Paul	Walker
+576	Assistant	Jennifer	Adams
+577	Assistant	Angela	Reyes
+578	Assistant	Maria	Wilson
+579	Assistant	Ryan	Wang
+580	Assistant	Travis	Miles
+581	Assistant	Karla	Schwartz
+582	Assistant	Anthony	Williams
+583	Assistant	Melanie	Castillo
+584	Assistant	Richard	Hall
+585	Assistant	Sean	Harrell
+586	Assistant	Matthew	Howard
+587	Assistant	Andrew	Atkinson
+588	Assistant	Patricia	Haynes
+589	Assistant	Donald	Byrd
+590	Assistant	Allison	Cochran
+591	Assistant	Tony	Banks
+592	Assistant	Nathaniel	Morrison
+593	Assistant	William	Gilbert
+594	Assistant	Devin	Davis
+595	Assistant	Nicole	Pittman
+596	Assistant	Dan	Boyd
+597	Assistant	Brian	Garcia
+598	Assistant	Christine	Thompson
+599	Assistant	Mary	Hines
+600	Assistant	Peter	Ray
+601	Assistant	Mario	Delgado
+602	Assistant	Christopher	Werner
+603	Assistant	Sabrina	Rodriguez
+604	Assistant	Jasmine	Osborne
+605	Assistant	Randy	Wilkinson
+606	Assistant	Victoria	Long
+607	Assistant	Danielle	Vasquez
+608	Assistant	Patricia	Singleton
+609	Assistant	Kristen	Foster
+610	Assistant	Kevin	Garza
+611	Assistant	Sheri	Villarreal
+612	Assistant	Raymond	Hill
+613	Assistant	Derrick	Nichols
+614	Assistant	Gordon	Doyle
+615	Assistant	Daniel	Flores
+616	Assistant	John	Hester
+617	Assistant	Joe	Fox
+618	Assistant	Douglas	Wade
+619	Assistant	Rachel	Reyes
+620	Assistant	Gregory	Carter
+621	Assistant	Shelly	Sanchez
+622	Assistant	Steven	Finley
+623	Assistant	Mary	Hoover
+624	Assistant	Maxwell	Escobar
+625	Assistant	Jeanne	Hernandez
+626	Assistant	Erica	Diaz
+627	Assistant	Rachael	Gonzalez
+628	Assistant	Wendy	Rose
+629	Assistant	Kathy	Johnson
+630	Assistant	Terry	Lewis
+631	Assistant	Brett	Stewart
+632	Assistant	Elizabeth	Robinson
+633	Assistant	David	Shah
+634	Assistant	Sarah	Collier
+635	Assistant	Jessica	Sawyer
+636	Assistant	William	Ball
+637	Assistant	Curtis	Crawford
+638	Assistant	Michael	Kelly
+639	Assistant	Shannon	Pope
+640	Assistant	Robert	Gonzales
+641	Assistant	Natalie	Brown
+642	Assistant	Willie	Boyd
+643	Assistant	Anthony	Love
+644	Assistant	Robert	Leblanc
+645	Assistant	Jared	Avila
+646	Assistant	Ashley	Mcconnell
+647	Assistant	Philip	Douglas
+648	Assistant	Marie	Burton
+649	Assistant	Angela	Perkins
+650	Assistant	Michael	Edwards
+651	Assistant	Nicolas	Holland
+652	Assistant	April	Medina
+653	Assistant	Wayne	Campbell
+654	Assistant	Richard	Gray
+655	Assistant	Mitchell	Lee
+656	Assistant	Brad	Chang
+657	Assistant	Courtney	Ward
+658	Assistant	Debra	Holt
+659	Assistant	Clayton	Rivera
+660	Assistant	Jennifer	White
+661	Assistant	Michael	Snyder
+662	Assistant	Kimberly	Wolfe
+663	Assistant	Nancy	Stephens
+664	Assistant	Cynthia	Hernandez
+665	Assistant	Jennifer	Robinson
+666	Assistant	Kathryn	Flores
+667	Assistant	Megan	Lowery
+668	Assistant	Angela	Kelley
+669	Assistant	Patricia	Taylor
+670	Assistant	Heather	Hill
+671	Assistant	Laurie	Turner
+672	Assistant	Alan	Rodriguez
+673	Assistant	Thomas	Merritt
+674	Assistant	Jill	Rodriguez
+675	Assistant	Jacob	Mendoza
+676	Assistant	John	Spencer
+677	Assistant	Jared	Long
+678	Assistant	Michele	Miller
+679	Assistant	Cheryl	Spence
+680	Assistant	Billy	Foster
+681	Assistant	Bradley	Johnson
+682	Assistant	Derek	Combs
+683	Assistant	Alex	Cole
+684	Assistant	Christian	Young
+685	Assistant	Christina	Mccoy
+686	Assistant	April	Burnett
+687	Assistant	Stephen	Garcia
+688	Assistant	Chris	Bradford
+689	Assistant	Ronald	Davis
+690	Assistant	Robert	Moran
+691	Assistant	Matthew	Durham
+692	Assistant	Jason	Ramirez
+693	Assistant	Barbara	Higgins
+694	Assistant	Timothy	Pham
+695	Assistant	Todd	Clark
+696	Assistant	Christopher	Hale
+697	Assistant	Alicia	Christensen
+698	Assistant	Joseph	Rodriguez
+699	Assistant	Mark	Jones
+700	Assistant	Larry	Bender
+701	Assistant	Melissa	Bush
+702	Assistant	Melissa	Gamble
+703	Assistant	Brian	Murphy
+704	Assistant	Russell	Butler
+705	Assistant	Richard	Dunn
+706	Assistant	Richard	Boyd
+707	Assistant	Bruce	Oneal
+708	Assistant	Richard	Bennett
+709	Assistant	Dan	Middleton
+710	Assistant	Troy	Moore
+711	Assistant	Michelle	Castro
+712	Assistant	Katie	Rowland
+713	Assistant	Thomas	Stone
+714	Assistant	Gerald	Adams
+715	Assistant	Russell	Lopez
+716	Assistant	Renee	Reeves
+717	Assistant	Vincent	Best
+718	Assistant	Linda	Santos
+719	Assistant	Shelley	Smith
+720	Assistant	Courtney	Kennedy
+721	Assistant	Christine	Wright
+722	Assistant	Christopher	Patel
+723	Assistant	Tracey	Clark
+724	Assistant	Daniel	Hayes
+725	Assistant	Krista	Kelly
+726	Assistant	Beth	Owen
+727	Assistant	Joshua	Collins
+728	Assistant	Kimberly	Daniels
+729	Assistant	Richard	Campbell
+730	Assistant	Joshua	Berger
+731	Assistant	Monica	Martin
+732	Assistant	Joshua	Carter
+733	Assistant	Stephanie	Bennett
+734	Assistant	Bryan	Moore
+735	Assistant	Larry	Wood
+736	Assistant	Nicole	Gomez
+737	Assistant	Madison	Obrien
+738	Assistant	Tiffany	Martin
+739	Assistant	Frank	Simpson
+740	Assistant	Angela	Simmons
+741	Assistant	Catherine	Tran
+742	Assistant	Lee	Thomas
+743	Assistant	Brittany	Yang
+744	Assistant	Sheri	Perkins
+745	Assistant	Andrea	Williams
+746	Assistant	Laura	Ramos
+747	Assistant	Jill	Gibbs
+748	Assistant	Michael	Arias
+749	Assistant	Jeff	Franklin
+750	Assistant	William	Curry
+751	Assistant	Christopher	Neal
+752	Assistant	Ashley	Bowman
+753	Assistant	Donna	Sanchez
+754	Assistant	Jason	Smith
+755	Assistant	Thomas	Gonzalez
+756	Assistant	Candace	Gray
+757	Assistant	Valerie	Cole
+758	Assistant	Debra	Smith
+759	Assistant	Pamela	Jones
+760	Assistant	Tara	Cantu
+761	Assistant	Justin	Wilson
+762	Assistant	Melody	Ferrell
+763	Assistant	Connor	Barron
+764	Assistant	Cheyenne	Hill
+765	Assistant	Curtis	Mayer
+766	Assistant	Joshua	Medina
+767	Assistant	Tina	Rodriguez
+768	Assistant	Richard	Mckinney
+769	Assistant	Mason	Ross
+770	Assistant	Sarah	Coleman
+771	Assistant	Robert	Gonzalez
+772	Assistant	Pamela	Reilly
+773	Assistant	Anthony	David
+774	Assistant	Wanda	Sullivan
+775	Assistant	Samantha	Mcclure
+776	Assistant	David	Cook
+777	Assistant	Lauren	Harvey
+778	Assistant	Kelly	Murray
+779	Assistant	Laura	Dennis
+780	Assistant	Christopher	Ramos
+781	Assistant	Chris	Little
+782	Assistant	Zachary	Copeland
+783	Assistant	Maria	Green
+784	Assistant	Angela	Logan
+785	Assistant	Brittany	Cummings
+786	Assistant	Ethan	Ray
+787	Assistant	Shelley	Rodriguez
+788	Assistant	Brent	Burke
+789	Assistant	Stacy	King
+790	Assistant	Dawn	Gilbert
+791	Assistant	Daniel	Harding
+792	Assistant	Diamond	Thomas
+793	Assistant	Nicholas	Carter
+794	Assistant	Jennifer	Soto
+795	Assistant	Katie	Kim
+796	Assistant	Erik	Anderson
+797	Assistant	Richard	Matthews
+798	Assistant	Joy	Spence
+799	Assistant	Michael	Smith
+800	Assistant	Emily	Terry
+801	Assistant	Billy	Lee
+802	Assistant	Kaylee	Harris
+803	Assistant	Shelby	Washington
+804	Assistant	Devin	Haynes
+805	Assistant	Teresa	Wright
+806	Assistant	Raymond	Jimenez
+807	Assistant	Terri	Thomas
+808	Assistant	Alicia	Abbott
+809	Assistant	Dorothy	Ochoa
+810	Assistant	Elizabeth	Rich
+811	Assistant	Michael	Douglas
+812	Assistant	Jennifer	Smith
+813	Assistant	Lisa	Mcneil
+814	Assistant	William	Carter
+815	Assistant	Benjamin	Bradley
+816	Assistant	Benjamin	Armstrong
+817	Assistant	Sara	Cook
+818	Assistant	Helen	Pierce
+819	Assistant	Carolyn	Williams
+820	Assistant	Melanie	Chambers
+821	Assistant	Anthony	Peterson
+822	Assistant	Audrey	Curry
+823	Assistant	William	Thompson
+824	Assistant	Ashley	Lara
+825	Assistant	Jessica	Sanchez
+826	Assistant	Michael	Ferguson
+827	Assistant	Sarah	Kaiser
+828	Assistant	Joe	Gibbs
+829	Assistant	Mark	Stephens
+830	Assistant	Andrea	Sawyer
+831	Assistant	Maria	Grant
+832	Assistant	Chad	Marshall
+833	Assistant	Jessica	Montoya
+834	Assistant	Ashley	Gomez
+835	Assistant	Christopher	Johnson
+836	Assistant	Rebecca	Douglas
+837	Assistant	Sarah	Powell
+838	Assistant	Paula	Mcintosh
+839	Assistant	Kevin	Lopez
+840	Assistant	Leah	Vargas
+841	Assistant	Keith	Reynolds
+842	Assistant	Reginald	Peters
+843	Assistant	Samuel	Lawrence
+844	Assistant	Robert	Thomas
+845	Assistant	Adam	Washington
+846	Assistant	Jeremiah	Vance
+847	Assistant	Kathleen	Christensen
+848	Assistant	Tiffany	Massey
+849	Assistant	Charles	Skinner
+850	Assistant	Carol	Ross
+851	Assistant	Christina	Leonard
+852	Assistant	Veronica	Chang
+853	Assistant	Christopher	Johnson
+854	Assistant	Suzanne	Bailey
+855	Assistant	Guy	Diaz
+856	Assistant	Julie	Ortiz
+857	Assistant	Christopher	Schmidt
+858	Assistant	Jacob	Vincent
+859	Assistant	Jimmy	Ford
+860	Assistant	Angela	Singh
+861	Assistant	Jason	Tran
+862	Assistant	Jason	Fox
+863	Assistant	Justin	Watson
+864	Assistant	Brian	Smith
+865	Assistant	Matthew	Gregory
+866	Assistant	Sara	Christensen
+867	Assistant	Debra	Willis
+868	Assistant	Chad	Mccarthy
+869	Assistant	Susan	Douglas
+870	Assistant	Sharon	Walker
+871	Assistant	Chloe	David
+872	Assistant	Jackson	Barber
+873	Assistant	Maria	Phillips
+874	Assistant	Suzanne	Bryan
+875	Assistant	Christopher	Johnson
+876	Assistant	Thomas	Strickland
+877	Assistant	Rebecca	Brown
+878	Assistant	Amy	Barnes
+879	Assistant	Adam	Horton
+880	Assistant	Melissa	Hunt
+881	Assistant	Christina	Gay
+882	Assistant	Stephen	Jackson
+883	Assistant	Stephen	Dalton
+884	Assistant	Melissa	Cole
+885	Assistant	Eric	Bentley
+886	Assistant	Jane	Patel
+887	Assistant	Thomas	Davis
+888	Assistant	Cameron	Flowers
+889	Assistant	Kelly	Schwartz
+890	Assistant	Veronica	Adams
+891	Assistant	Abigail	Spencer
+892	Assistant	Jacqueline	Smith
+893	Assistant	Johnny	Jackson
+894	Assistant	Larry	Nolan
+895	Assistant	Robert	Jones
+896	Assistant	Leslie	Bell
+897	Assistant	Peter	Johnson
+898	Assistant	Michael	Vasquez
+899	Assistant	Jose	Martinez
+900	Assistant	Donald	Harris
+901	Assistant	Katherine	Brown
+902	Assistant	Daniel	Rivera
+903	Assistant	James	Harrell
+904	Assistant	Monica	Davis
+905	Assistant	Heather	Browning
+906	Assistant	Jeremiah	Morris
+907	Assistant	Melinda	Hill
+908	Assistant	Shawn	Fleming
+909	Assistant	Emily	Nichols
+910	Assistant	Laura	Warren
+911	Assistant	Mary	Smith
+912	Assistant	Kathryn	Parker
+913	Assistant	Abigail	Flores
+914	Assistant	Kevin	Maynard
+915	Assistant	Jeffrey	Carson
+916	Assistant	Jennifer	Kim
+917	Assistant	Hunter	Vargas
+918	Assistant	Glenda	Payne
+919	Assistant	Cindy	Rodriguez
+920	Assistant	Christina	Thompson
+921	Assistant	Kevin	Willis
+922	Assistant	James	Butler
+923	Assistant	Crystal	Kennedy
+924	Assistant	Crystal	Hancock
+925	Assistant	Melinda	Mcgrath
+926	Assistant	Anthony	Garza
+927	Assistant	Jennifer	Stokes
+928	Assistant	James	Ruiz
+929	Assistant	Sandra	Adams
+930	Assistant	Michael	Thomas
+931	Assistant	Kara	Ortiz
+932	Assistant	Andrea	Wilkerson
+933	Assistant	Jon	Santos
+934	Assistant	Martin	Collins
+935	Assistant	Amanda	Jones
+936	Assistant	Christopher	Mckinney
+937	Assistant	David	Conway
+938	Assistant	Cynthia	Maldonado
+939	Assistant	Daniel	Brown
+940	Assistant	Tanner	Shields
+941	Assistant	William	Moore
+942	Assistant	Sydney	Lamb
+943	Assistant	Jason	Mora
+944	Assistant	Michelle	Flores
+945	Assistant	Hannah	Garrett
+946	Assistant	Carrie	Dean
+947	Assistant	Phillip	Walters
+948	Assistant	Cody	Campbell
+949	Assistant	Paul	Bailey
+950	Assistant	Cameron	Hernandez
+951	Assistant	Julie	Powell
+952	Assistant	Jeffrey	Allen
+953	Assistant	Cheryl	Henderson
+954	Assistant	Brian	Mitchell
+955	Assistant	Benjamin	Smith
+956	Assistant	George	Williams
+957	Assistant	Nicholas	Lopez
+958	Assistant	Mark	Hudson
+959	Assistant	Kaitlyn	Jones
+960	Assistant	Charles	Hernandez
+961	Assistant	Thomas	Bowman
+962	Assistant	Harold	Jackson
+963	Assistant	Fred	Thomas
+964	Assistant	Amy	Barker
+965	Assistant	Kimberly	Williams
+966	Assistant	Justin	Massey
+967	Assistant	Alison	Scott
+968	Assistant	Sara	Brown
+969	Assistant	Joseph	Coleman
+970	Assistant	Rachel	Miller
+971	Assistant	Kristy	Fuller
+972	Assistant	Bryan	Carroll
+973	Assistant	Michael	Hamilton
+974	Assistant	Lisa	Armstrong
+975	Assistant	Michael	Barron
+976	Assistant	Jonathan	Alvarado
+977	Assistant	Jesus	Tapia
+978	Assistant	Paul	Jones
+979	Assistant	Elizabeth	White
+980	Assistant	Lori	Harrell
+981	Assistant	April	Baker
+982	Assistant	Samuel	Moran
+983	Assistant	John	Soto
+984	Assistant	Mark	Smith
+985	Assistant	Catherine	Roberson
+986	Assistant	Joseph	Hamilton
+987	Assistant	John	Newman
+988	Assistant	Brian	Buckley
+989	Assistant	Michelle	Farley
+990	Assistant	Elizabeth	Taylor
+991	Assistant	Katie	Morris
+992	Assistant	Katherine	Woods
+993	Assistant	Matthew	Hester
+994	Assistant	Javier	Nelson
+995	Assistant	Michael	Hanson
+996	Assistant	Lisa	Brooks
+997	Assistant	James	Williams
+998	Assistant	Emily	Cox
+999	Assistant	Nathan	Krueger
+1000	Assistant	Matthew	Nelson
+1001	Assistant	Debra	Hogan
+1002	Assistant	Meghan	Terry
+1003	Assistant	Hannah	Hanna
+1004	Assistant	Kevin	Ware
+1005	Assistant	Denise	Smith
+1006	Assistant	Sarah	Payne
+1007	Assistant	Alexander	Gomez
+1008	Assistant	Brian	Merritt
+1009	Assistant	Courtney	Barton
+1010	Assistant	Amanda	Barber
+1011	Assistant	Hector	Luna
+1012	Assistant	Bradley	Kim
+1013	Assistant	Melanie	Mooney
+1014	Assistant	Sharon	Ross
+1015	Assistant	Jesse	King
+1016	Assistant	Andrea	Taylor
+1017	Assistant	Denise	Padilla
+1018	Assistant	Roberta	Lee
+1019	Assistant	Larry	Garcia
+1020	Assistant	Amanda	Wilson
+1021	Assistant	Daniel	Smith
+1022	Assistant	Rachel	Jones
+1023	Assistant	David	Dudley
+1024	Assistant	Stephanie	Potter
+1025	Assistant	Christopher	Smith
+1026	Assistant	Amy	White
+1027	Assistant	Tiffany	Rocha
+1028	Assistant	Michele	Matthews
+1029	Assistant	Donna	Green
+1030	Assistant	John	Wright
+1031	Assistant	Caroline	Powell
+1032	Assistant	Albert	Sheppard
+1033	Assistant	Virginia	Dudley
+1034	Assistant	Brittany	Stevens
+1035	Assistant	Craig	Riley
+1036	Assistant	Elizabeth	Byrd
+1037	Assistant	Peter	Garcia
+1038	Assistant	Jessica	Burns
+1039	Assistant	Richard	Smith
+1040	Assistant	Randy	Cervantes
+1041	Assistant	Timothy	Mckee
+1042	Assistant	Bruce	Nelson
+1043	Assistant	William	Mejia
+1044	Assistant	Timothy	Hughes
+1045	Assistant	Casey	Mitchell
+1046	Assistant	Sharon	Miller
+1047	Assistant	Amanda	Sexton
+1048	Assistant	Andrea	Bell
+1049	Assistant	Nicole	Fox
+1050	Assistant	Tom	Smith
+1051	Assistant	Suzanne	Mitchell
+1052	Assistant	Alyssa	Morris
+1053	Assistant	Leslie	Stokes
+1054	Assistant	Kimberly	Thompson
+1055	Assistant	Donna	Woodward
+1056	Assistant	Jonathan	Holloway
+1057	Assistant	Dwayne	Little
+1058	Assistant	Stephanie	Dunlap
+1059	Assistant	Theresa	Stephenson
+1060	Assistant	Allison	Harris
+1061	Assistant	Crystal	Beltran
+1062	Assistant	Melvin	Perez
+1063	Assistant	Marissa	Brown
+1064	Assistant	Brittany	Wells
+1065	Assistant	Christopher	Olson
+1066	Assistant	Benjamin	Moore
+1067	Assistant	Jay	Edwards
+1068	Assistant	Laura	Allen
+1069	Assistant	Monica	Dixon
+1070	Assistant	Rebecca	Weber
+1071	Assistant	Jacqueline	Gilbert
+1072	Assistant	Ronald	Hendricks
+1073	Assistant	Stephanie	Ferguson
+1074	Assistant	Katherine	Bradford
+1075	Assistant	Sandra	Duncan
+1076	Assistant	Kimberly	Reed
+1077	Assistant	Emily	Stevenson
+1078	Assistant	Jason	Taylor
+1079	Assistant	Sarah	Cowan
+1080	Assistant	Alexander	Cox
+1081	Assistant	Brandy	Guerra
+1082	Assistant	Dustin	Cobb
+1083	Assistant	Ronald	Martinez
+1084	Assistant	Karen	Carter
+1085	Assistant	Denise	Cline
+1086	Assistant	John	Madden
+1087	Assistant	Katherine	Gould
+1088	Assistant	Mark	Gonzalez
+1089	Assistant	Michael	Lopez
+1090	Assistant	Kelli	Hernandez
+1091	Assistant	Bonnie	Wiley
+1092	Assistant	Rebecca	Hall
+1093	Assistant	Jared	Leblanc
+1094	Assistant	Joshua	Torres
+1095	Assistant	Erica	Snyder
+1096	Assistant	Brian	Reid
+1097	Assistant	Gregory	Kelly
+1098	Assistant	Melissa	Armstrong
+1099	Assistant	Gabrielle	Hooper
+1100	Assistant	Billy	Price
+1101	Assistant	Robert	Rose
+1102	Assistant	Kathleen	Thomas
+1103	Assistant	Cody	Wilson
+1104	Assistant	Nicole	Carroll
+1105	Assistant	Linda	Garcia
+1106	Assistant	David	Morgan
+1107	Assistant	Kayla	Moore
+1108	Assistant	Tonya	Garcia
+1109	Assistant	Patricia	Williams
+1110	Assistant	Carolyn	Smith
+1111	Assistant	Kevin	Moore
+1112	Assistant	Amanda	Rivera
+1113	Assistant	Marissa	Brown
+1114	Assistant	Megan	Gibson
+1115	Assistant	Steve	Mills
+1116	Assistant	Nicholas	Ford
+1117	Assistant	Jo	Franklin
+1118	Assistant	Casey	Rodriguez
+1119	Assistant	Chad	Diaz
+1120	Assistant	William	Wells
+1121	Assistant	Ryan	Kelly
+1122	Assistant	Connie	Stout
+1123	Assistant	David	Bush
+1124	Assistant	Dennis	Wolf
+1125	Assistant	Steve	George
+1126	Assistant	Daniel	Lewis
+1127	Assistant	Tim	Hicks
+1128	Assistant	Juan	Mccoy
+1129	Assistant	Crystal	George
+1130	Assistant	Victoria	Martinez
+1131	Assistant	Cheyenne	Odom
+1132	Assistant	Erika	Meyers
+1133	Assistant	Ryan	Rodgers
+1134	Assistant	Brittney	Gonzales
+1135	Assistant	Elizabeth	Nelson
+1136	Assistant	Benjamin	Flores
+1137	Assistant	Thomas	Wilson
+1138	Assistant	Carla	Cole
+1139	Assistant	Diane	Coleman
+1140	Assistant	Dalton	Young
+1141	Assistant	Nicholas	Ball
+1142	Assistant	Tracy	Schmidt
+1143	Assistant	Amanda	Shelton
+1144	Assistant	Debra	Mcmillan
+1145	Assistant	Mitchell	Walker
+1146	Assistant	Susan	Riggs
+1147	Assistant	Grace	Sullivan
+1148	Assistant	Vanessa	Robbins
+1149	Assistant	Ralph	Manning
+1150	Assistant	Eric	Mitchell
+1151	Assistant	Donna	Gallegos
+1152	Assistant	Matthew	Vargas
+1153	Assistant	Ronald	Orr
+1154	Assistant	Linda	Ellis
+1155	Assistant	Lee	Lee
+1156	Assistant	David	Ward
+1157	Assistant	Zachary	Green
+1158	Assistant	Mason	Wilson
+1159	Assistant	Craig	Evans
+1160	Assistant	Bernard	Leach
+1161	Assistant	Lisa	Pope
+1162	Assistant	Michele	Davis
+1163	Assistant	Joshua	Lewis
+1164	Assistant	Richard	Anderson
+1165	Assistant	Jessica	Stanley
+1166	Assistant	Wendy	Landry
+1167	Assistant	Kimberly	Bonilla
+1168	Assistant	Jason	Diaz
+1169	Assistant	Linda	Martin
+1170	Assistant	Patricia	Chung
+1171	Assistant	Nathan	Bowen
+1172	Assistant	Juan	Cabrera
+1173	Assistant	Nicole	Orr
+1174	Assistant	Peter	Hunter
+1175	Assistant	Christy	Delgado
+1176	Assistant	Margaret	Anderson
+1177	Assistant	Eric	Elliott
+1178	Assistant	Ryan	Mays
+1179	Assistant	Vanessa	Tran
+1180	Assistant	Joshua	Watson
+1181	Assistant	Michael	Lee
+1182	Assistant	Kimberly	Johnson
+1183	Assistant	Marie	Medina
+1184	Assistant	Joshua	Morse
+1185	Assistant	Kyle	Mendez
+1186	Assistant	Jay	Solis
+1187	Assistant	Michael	Frost
+1188	Assistant	Justin	Phillips
+1189	Assistant	Leslie	Compton
+1190	Assistant	Dylan	Murphy
+1191	Assistant	Joshua	Luna
+1192	Assistant	Janet	Crawford
+1193	Assistant	Rachel	Clay
+1194	Assistant	Sandra	Young
+1195	Assistant	Christopher	Hughes
+1196	Assistant	Diana	Parker
+1197	Assistant	Frank	Powell
+1198	Assistant	Courtney	Wade
+1199	Assistant	Nicole	Montoya
+1200	Assistant	Danny	Boyd
+1201	Assistant	Danielle	Rodriguez
+1202	Assistant	Michelle	Cunningham
+1203	Assistant	Alexis	Reed
+1204	Assistant	Colleen	Rojas
+1205	Assistant	Jessica	Powers
+1206	Assistant	Anthony	Hopkins
+1207	Assistant	Casey	Howard
+1208	Assistant	Jessica	Larsen
+1209	Assistant	Jessica	Phillips
+1210	Assistant	Allison	Moore
+1211	Assistant	Kayla	Larson
+1212	Assistant	Jennifer	Sanchez
+1213	Assistant	Theresa	Shaffer
+1214	Assistant	Kevin	Taylor
+1215	Assistant	Kimberly	Smith
+1216	Assistant	David	Anderson
+1217	Assistant	Stanley	Marks
+1218	Assistant	Jill	Cline
+1219	Assistant	David	Turner
+1220	Assistant	Eric	Reed
+1221	Assistant	Lindsey	Olson
+1222	Assistant	Thomas	Meyers
+1223	Assistant	Eugene	Reed
+1224	Assistant	Heather	Chambers
+1225	Assistant	Dawn	Griffin
+1226	Assistant	Melinda	Young
+1227	Assistant	Stephanie	Mendez
+1228	Assistant	Francisco	Farley
+1229	Assistant	Christopher	Smith
+1230	Assistant	Bonnie	Marquez
+1231	Assistant	Melinda	Cooper
+1232	Assistant	Amy	Garcia
+1233	Assistant	Shelia	Smith
+1234	Assistant	Paula	Beck
+1235	Assistant	Caitlin	Terrell
+1236	Assistant	Casey	Ramirez
+1237	Assistant	Christine	Cook
+1238	Assistant	Mitchell	Smith
+1239	Assistant	Glenn	Ward
+1240	Assistant	Sara	Wilson
+1241	Assistant	Cynthia	Kaiser
+1242	Assistant	Felicia	Harris
+1243	Assistant	Brittany	Williams
+1244	Assistant	Michelle	Campbell
+1245	Assistant	Jason	Goodwin
+1246	Assistant	Courtney	Smith
+1247	Assistant	Edwin	Weber
+1248	Assistant	Taylor	Barker
+1249	Assistant	Debra	Nunez
+1250	Assistant	Jacob	Gonzalez
+1251	Assistant	Jennifer	Bradford
+1252	Assistant	Beth	Golden
+1253	Assistant	David	Dawson
+1254	Assistant	Walter	Hughes
+1255	Assistant	John	Mack
+1256	Assistant	Joshua	Welch
+1257	Assistant	Kimberly	Rogers
+1258	Assistant	Nathan	Clark
+1259	Assistant	Kyle	Munoz
+1260	Assistant	Anthony	Collins
+1261	Assistant	Anthony	Stewart
+1262	Assistant	Scott	Vazquez
+1263	Assistant	Tina	Nguyen
+1264	Assistant	James	Sanchez
+1265	Assistant	Bruce	Wilson
+1266	Assistant	David	Taylor
+1267	Assistant	Paul	Stone
+1268	Assistant	Mark	Hudson
+1269	Assistant	Briana	Patterson
+1270	Assistant	Shari	Perez
+1271	Assistant	David	Huerta
+1272	Assistant	Sarah	Nixon
+1273	Assistant	Matthew	Johnson
+1274	Assistant	Lori	Peterson
+1275	Assistant	Daniel	Hansen
+1276	Assistant	Christopher	Francis
+1277	Assistant	Kyle	Craig
+1278	Assistant	Megan	Davis
+1279	Assistant	Diana	Anderson
+1280	Assistant	Emily	Oliver
+1281	Assistant	Lisa	Hogan
+1282	Assistant	Alexander	Gonzales
+1283	Assistant	Timothy	Adams
+1284	Assistant	Jessica	Christian
+1285	Assistant	Tracie	Burns
+1286	Assistant	Andrea	Sullivan
+1287	Assistant	Debra	Knapp
+1288	Assistant	Kenneth	Ellison
+1289	Assistant	Christopher	Rollins
+1290	Assistant	Emily	Miller
+1291	Assistant	Andrew	Salazar
+1292	Assistant	Mikayla	Hunt
+1293	Assistant	Tyler	Holder
+1294	Assistant	Todd	Jones
+1295	Assistant	Amanda	Adams
+1296	Assistant	James	Smith
+1297	Assistant	Jonathan	Thomas
+1298	Assistant	Anna	Santiago
+1299	Assistant	Jessica	Rollins
+1300	Assistant	Steven	Sanders
+1301	Assistant	Jared	Wiggins
+1302	Assistant	Timothy	Brooks
+1303	Assistant	Jose	Perez
+1304	Assistant	Debra	Hughes
+1305	Assistant	Heather	Ramsey
+1306	Assistant	Nicholas	Hernandez
+1307	Assistant	Timothy	Howard
+1308	Assistant	Marcia	Duncan
+1309	Assistant	David	Johnson
+1310	Assistant	Joshua	Owens
+1311	Assistant	Alicia	Bell
+1312	Assistant	Noah	Spencer
+1313	Assistant	Martin	Austin
+1314	Assistant	Andrea	Farley
+1315	Assistant	Kristi	Payne
+1316	Assistant	James	Jones
+1317	Assistant	Jacob	Jacobs
+1318	Assistant	Emily	Thomas
+1319	Assistant	Scott	Ward
+1320	Assistant	David	Adams
+1321	Assistant	Mitchell	Fowler
+1322	Assistant	Austin	Mccoy
+1323	Assistant	Mitchell	Jenkins
+1324	Assistant	Michelle	Smith
+1325	Assistant	Sean	Moyer
+1326	Assistant	Bradley	Fields
+1327	Assistant	Melissa	Armstrong
+1328	Assistant	Carolyn	Morris
+1329	Assistant	Jennifer	Ramirez
+1330	Assistant	Raymond	Reed
+1331	Assistant	Michael	Hill
+1332	Assistant	Jacob	Grant
+1333	Assistant	Kimberly	Rivera
+1334	Assistant	Michelle	Phillips
+1335	Assistant	Alicia	Payne
+1336	Assistant	Matthew	Wilson
+1337	Assistant	Donald	Garcia
+1338	Assistant	Corey	Townsend
+1339	Assistant	Maria	Boyd
+1340	Assistant	Diane	James
+1341	Assistant	Mallory	Roach
+1342	Assistant	Yvonne	Taylor
+1343	Assistant	Leonard	Vargas
+1344	Assistant	Jason	Anderson
+1345	Assistant	Scott	Reed
+1346	Assistant	Mike	Benjamin
+1347	Assistant	Angelica	Peck
+1348	Assistant	Bryan	Parker
+1349	Assistant	Larry	Thompson
+1350	Assistant	Jacqueline	Tucker
+1351	Assistant	Rebecca	Jones
+1352	Assistant	Anna	Gallagher
+1353	Assistant	Heather	Diaz
+1354	Assistant	Jessica	Holmes
+1355	Assistant	Colleen	Ward
+1356	Assistant	Jennifer	Houston
+1357	Assistant	Daniel	Lewis
+1358	Assistant	Louis	Bryant
+1359	Assistant	Francisco	Holloway
+1360	Assistant	Christine	Patton
+1361	Assistant	Wyatt	Graham
+1362	Assistant	Stephen	Williams
+1363	Assistant	Shaun	Hart
+1364	Assistant	Cindy	Bowman
+1365	Assistant	Emily	Herrera
+1366	Assistant	Amanda	Davis
+1367	Assistant	Kyle	Hamilton
+1368	Assistant	Jessica	Snyder
+1369	Assistant	Jennifer	Cruz
+1370	Assistant	Tiffany	Stokes
+1371	Assistant	Amy	Burns
+1372	Assistant	Maria	Castro
+1373	Assistant	Joel	Miranda
+1374	Assistant	Jennifer	Phillips
+1375	Assistant	Robert	Williams
+1376	Assistant	Natalie	Ward
+1377	Assistant	Tiffany	Baker
+1378	Assistant	Amy	Miller
+1379	Assistant	Julie	Walker
+1380	Assistant	Danielle	Harris
+1381	Assistant	Mary	Miller
+1382	Assistant	Alison	Berg
+1383	Assistant	Mary	Flores
+1384	Assistant	Rebecca	Miller
+1385	Assistant	Kara	Ryan
+1386	Assistant	Sarah	Daniels
+1387	Assistant	Xavier	Brown
+1388	Assistant	Daniel	Hanson
+1389	Assistant	John	Nguyen
+1390	Assistant	Victor	Palmer
+1391	Assistant	Tiffany	Brown
+1392	Assistant	Timothy	Harmon
+1393	Assistant	Jessica	Villa
+1394	Assistant	Casey	Schroeder
+1395	Assistant	Denise	Ramirez
+1396	Assistant	Karen	Parker
+1397	Assistant	Nathan	Bishop
+1398	Assistant	Tiffany	Murphy
+1399	Assistant	Timothy	Powers
+1400	Assistant	Joe	Butler
+1401	Assistant	Nicole	Lindsey
+1402	Assistant	Laura	West
+1403	Assistant	John	Brewer
+1404	Assistant	Dalton	Flowers
+1405	Assistant	Rita	Edwards
+1406	Assistant	Christopher	Smith
+1407	Assistant	Joshua	Baldwin
+1408	Assistant	Chelsea	Adams
+1409	Assistant	Xavier	Francis
 \.
 
 
@@ -25647,647 +27052,647 @@ COPY public.scorefinal (match_id, pointequipea, pointequipeb) FROM stdin;
 
 
 --
--- Data for Name: stafftechnique; Type: TABLE DATA; Schema: public; Owner: wcuser
+-- Data for Name: selectionneur; Type: TABLE DATA; Schema: public; Owner: wcuser
 --
 
-COPY public.stafftechnique (id_staff, roleequipe, prenomstaff, nomstaff, journ, moisn, anneen, id_equipe) FROM stdin;
-1	selectionneur	Francisco	Bru	\N	\N	\N	9
-2	selectionneur	Raoul	Caudron	\N	\N	\N	6
-3	selectionneur	Píndaro	de Carvalho Rodrigues	\N	\N	\N	4
-4	selectionneur	José	Durand Laguna	\N	\N	\N	8
-5	selectionneur	Hector	Goetinck	\N	\N	\N	2
-6	selectionneur	Juan	Luque de Serrallonga	\N	\N	\N	7
-7	selectionneur	Robert	Millar	\N	\N	\N	11
-8	selectionneur	Francisco	Olazar	\N	\N	\N	1
-9	selectionneur	György	Orth	\N	\N	\N	5
-10	selectionneur	Costel	Rădulescu	\N	\N	\N	10
-11	selectionneur	Ulises	Saucedo	\N	\N	\N	3
-12	selectionneur	Boško	Simonović	\N	\N	\N	13
-13	selectionneur	Alberto	Suppici	\N	\N	\N	12
-14	selectionneur	Juan José	Tramutola	\N	\N	\N	1
-15	selectionneur	Amadeo	García	\N	\N	\N	26
-16	selectionneur	Bob	Glendenning	\N	\N	\N	24
-17	selectionneur	Hector	Goetinck	\N	\N	\N	16
-18	selectionneur	David	Gould	\N	\N	\N	29
-19	selectionneur	George	Kimpton	\N	\N	\N	20
-20	selectionneur	James	McCrae	\N	\N	\N	19
-21	selectionneur	Hugo	Meisl	\N	\N	\N	15
-22	selectionneur	Heinrich	Müller	\N	\N	\N	28
-23	selectionneur	Ödön	Nádas	\N	\N	\N	22
-24	selectionneur	Otto	Nerz	\N	\N	\N	21
-25	selectionneur	Felipe	Pascucci	\N	\N	\N	14
-26	selectionneur	Karel	Petrů	\N	\N	\N	18
-27	selectionneur	John	Pettersson	\N	\N	\N	27
-28	selectionneur	Vittorio	Pozzo	\N	\N	\N	23
-29	selectionneur	Costel	Rădulescu	\N	\N	\N	25
-30	selectionneur	Josef	Uridil	\N	\N	\N	25
-31	selectionneur	Luiz	Vinhaes	\N	\N	\N	17
-32	selectionneur	Gaston	Barreau	\N	\N	\N	35
-33	selectionneur	Jack	Butler	\N	\N	\N	30
-34	selectionneur	Károly	Dietz	\N	\N	\N	37
-35	selectionneur	Bob	Glendenning	\N	\N	\N	39
-36	selectionneur	Asbjørn	Halvorsen	\N	\N	\N	40
-37	selectionneur	Sepp	Herberger	\N	\N	\N	36
-38	selectionneur	Józef	Kałuża	\N	\N	\N	41
-39	selectionneur	Johan	Mastenbroek	\N	\N	\N	34
-40	selectionneur	Josef	Meissner	\N	\N	\N	33
-41	selectionneur	József	Nagy	\N	\N	\N	43
-42	selectionneur	Adhemar	Pimenta	\N	\N	\N	31
-43	selectionneur	Vittorio	Pozzo	\N	\N	\N	38
-44	selectionneur	Costel	Rădulescu	\N	\N	\N	42
-45	selectionneur	Karl	Rappan	\N	\N	\N	44
-46	selectionneur	Alexandru	Săvulescu	\N	\N	\N	42
-47	selectionneur	Alfréd	Schaffer	\N	\N	\N	37
-48	selectionneur	José	Tapia	\N	\N	\N	32
-49	selectionneur	Franco	Andreoli	\N	\N	\N	54
-50	selectionneur	Milorad	Arsenijević	\N	\N	\N	57
-51	selectionneur	Alberto	Buccicardi	\N	\N	\N	47
-52	selectionneur	Flávio	Costa	\N	\N	\N	46
-53	selectionneur	Guillermo	Eizaguirre	\N	\N	\N	52
-54	selectionneur	Manuel	Fleitas Solich	\N	\N	\N	51
-55	selectionneur	William	Jeffrey	\N	\N	\N	55
-56	selectionneur	Juan	López	\N	\N	\N	56
-57	selectionneur	Ferruccio	Novo	\N	\N	\N	49
-58	selectionneur	Mario	Pretto	\N	\N	\N	45
-59	selectionneur	George	Raynor	\N	\N	\N	53
-60	selectionneur	Octavio	Vial	\N	\N	\N	50
-61	selectionneur	Walter	Winterbottom	\N	\N	\N	48
-62	selectionneur	Andy	Beattie	\N	\N	\N	67
-63	selectionneur	Karol	Borhy	\N	\N	\N	61
-64	selectionneur	Lajos	Czeizler	\N	\N	\N	65
-65	selectionneur	Sepp	Herberger	\N	\N	\N	72
-66	selectionneur	Yong-sik	Kim	\N	\N	\N	68
-67	selectionneur	Doug	Livingstone	\N	\N	\N	59
-68	selectionneur	Juan	López	\N	\N	\N	71
-69	selectionneur	Antonio	López Herranz	\N	\N	\N	66
-70	selectionneur	Zezé	Moreira	\N	\N	\N	60
-71	selectionneur	Walter	Nausch	\N	\N	\N	58
-72	selectionneur	Pierre	Pibarot	\N	\N	\N	63
-73	selectionneur	Sandro	Puppo	\N	\N	\N	70
-74	selectionneur	Karl	Rappan	\N	\N	\N	69
-75	selectionneur	Gusztáv	Sebes	\N	\N	\N	64
-76	selectionneur	Aleksandar	Tirnanić	\N	\N	\N	73
-77	selectionneur	Walter	Winterbottom	\N	\N	\N	62
-78	selectionneur	Karl	Argauer	\N	\N	\N	75
-79	selectionneur	Lajos	Baróti	\N	\N	\N	80
-80	selectionneur	Albert	Batteux	\N	\N	\N	79
-81	selectionneur	Matt	Busby	\N	\N	\N	84
-82	selectionneur	Peter	Doherty	\N	\N	\N	82
-83	selectionneur	Vicente	Feola	\N	\N	\N	76
-84	selectionneur	Aurelio	González	\N	\N	\N	83
-85	selectionneur	Sepp	Herberger	\N	\N	\N	88
-86	selectionneur	Gavriil	Kachalin	\N	\N	\N	85
-87	selectionneur	Karel	Kolský	\N	\N	\N	77
-88	selectionneur	Antonio	López Herranz	\N	\N	\N	81
-89	selectionneur	Jimmy	Murphy	\N	\N	\N	87
-90	selectionneur	George	Raynor	\N	\N	\N	86
-91	selectionneur	Guillermo	Stábile	\N	\N	\N	74
-92	selectionneur	Aleksandar	Tirnanić	\N	\N	\N	89
-93	selectionneur	Dawson	Walker	\N	\N	\N	84
-94	selectionneur	Walter	Winterbottom	\N	\N	\N	78
-95	selectionneur	Lajos	Baróti	\N	\N	\N	97
-96	selectionneur	Juan Carlos	Corazzo	\N	\N	\N	103
-97	selectionneur	Giovanni	Ferrari	\N	\N	\N	98
-98	selectionneur	Sepp	Herberger	\N	\N	\N	104
-99	selectionneur	Helenio	Herrera	\N	\N	\N	101
-100	selectionneur	Gavriil	Kachalin	\N	\N	\N	100
-101	selectionneur	Juan Carlos	Lorenzo	\N	\N	\N	90
-102	selectionneur	Ljubomir	Lovrić	\N	\N	\N	105
-103	selectionneur	Paolo	Mazza	\N	\N	\N	98
-104	selectionneur	Prvoslav	Mihajlović	\N	\N	\N	105
-105	selectionneur	Aymoré	Moreira	\N	\N	\N	91
-106	selectionneur	Georgi	Pachedzhiev	\N	\N	\N	92
-107	selectionneur	Adolfo	Pedernera	\N	\N	\N	94
-108	selectionneur	Karl	Rappan	\N	\N	\N	102
-109	selectionneur	Fernando	Riera	\N	\N	\N	93
-110	selectionneur	Ignacio	Tréllez	\N	\N	\N	99
-111	selectionneur	Rudolf	Vytlačil	\N	\N	\N	95
-112	selectionneur	Walter	Winterbottom	\N	\N	\N	96
-113	selectionneur	Luis	Álamos	\N	\N	\N	109
-114	selectionneur	Lajos	Baróti	\N	\N	\N	112
-115	selectionneur	Edmondo	Fabbri	\N	\N	\N	113
-116	selectionneur	Vicente	Feola	\N	\N	\N	107
-117	selectionneur	Alfredo	Foni	\N	\N	\N	119
-118	selectionneur	Otto	Glória	\N	\N	\N	116
-119	selectionneur	Henri	Guérin	\N	\N	\N	111
-120	selectionneur	Juan Carlos	Lorenzo	\N	\N	\N	106
-121	selectionneur	Nikolai	Morozov	\N	\N	\N	117
-122	selectionneur	Rye-hyun	Myung	\N	\N	\N	115
-123	selectionneur	Alf	Ramsey	\N	\N	\N	110
-124	selectionneur	Helmut	Schön	\N	\N	\N	121
-125	selectionneur	Ignacio	Tréllez	\N	\N	\N	114
-126	selectionneur	Ondino	Viera	\N	\N	\N	120
-127	selectionneur	José	Villalonga	\N	\N	\N	118
-128	selectionneur	Rudolf	Vytlačil	\N	\N	\N	108
-129	selectionneur	Orvar	Bergmark	\N	\N	\N	135
-130	selectionneur	Stefan	Bozhkov	\N	\N	\N	124
-131	selectionneur	Raúl	Cárdenas	\N	\N	\N	130
-132	selectionneur	Hernán	Carrasco	\N	\N	\N	126
-133	selectionneur	not applicable	Didi	\N	\N	\N	132
-134	selectionneur	Raymond	Goethals	\N	\N	\N	122
-135	selectionneur	Juan	Hohberg	\N	\N	\N	136
-136	selectionneur	Gavriil	Kachalin	\N	\N	\N	134
-137	selectionneur	Jozef	Marko	\N	\N	\N	125
-138	selectionneur	Angelo	Niculescu	\N	\N	\N	133
-139	selectionneur	Alf	Ramsey	\N	\N	\N	127
-140	selectionneur	Emmanuel	Scheffer	\N	\N	\N	128
-141	selectionneur	Helmut	Schön	\N	\N	\N	137
-142	selectionneur	Ferruccio	Valcareggi	\N	\N	\N	129
-143	selectionneur	Blagoje	Vidinić	\N	\N	\N	131
-144	selectionneur	Mário	Zagallo	\N	\N	\N	123
-145	selectionneur	Luis	Álamos	\N	\N	\N	142
-146	selectionneur	Georg	Buschner	\N	\N	\N	143
-147	selectionneur	Vladislao	Cap	\N	\N	\N	138
-148	selectionneur	Georg	Ericson	\N	\N	\N	149
-149	selectionneur	Kazimierz	Górski	\N	\N	\N	147
-150	selectionneur	Rinus	Michels	\N	\N	\N	146
-151	selectionneur	Miljan	Miljanić	\N	\N	\N	152
-152	selectionneur	Hristo	Mladenov	\N	\N	\N	141
-153	selectionneur	Willie	Ormond	\N	\N	\N	148
-154	selectionneur	Roberto	Porta	\N	\N	\N	150
-155	selectionneur	Rale	Rasic	\N	\N	\N	139
-156	selectionneur	Helmut	Schön	\N	\N	\N	151
-157	selectionneur	Antoine	Tassy	\N	\N	\N	144
-158	selectionneur	Ferruccio	Valcareggi	\N	\N	\N	145
-159	selectionneur	Blagoje	Vidinić	\N	\N	\N	153
-160	selectionneur	Mário	Zagallo	\N	\N	\N	140
-161	selectionneur	Lajos	Baróti	\N	\N	\N	158
-162	selectionneur	Enzo	Bearzot	\N	\N	\N	160
-163	selectionneur	Marcos	Calderón	\N	\N	\N	163
-164	selectionneur	Abdelmajid	Chetali	\N	\N	\N	168
-165	selectionneur	Cláudio	Coutinho	\N	\N	\N	156
-166	selectionneur	Georg	Ericson	\N	\N	\N	167
-167	selectionneur	Jacek	Gmoch	\N	\N	\N	164
-168	selectionneur	Ernst	Happel	\N	\N	\N	162
-169	selectionneur	Michel	Hidalgo	\N	\N	\N	157
-170	selectionneur	Ladislao	Kubala	\N	\N	\N	166
-171	selectionneur	Ally	MacLeod	\N	\N	\N	165
-172	selectionneur	César Luis	Menotti	\N	\N	\N	154
-173	selectionneur	Heshmat	Mohajerani	\N	\N	\N	159
-174	selectionneur	José Antonio	Roca	\N	\N	\N	161
-175	selectionneur	Helmut	Schön	\N	\N	\N	169
-176	selectionneur	Helmut	Senekowitsch	\N	\N	\N	155
-177	selectionneur	John	Adshead	\N	\N	\N	185
-178	selectionneur	Enzo	Bearzot	\N	\N	\N	183
-179	selectionneur	Konstantin	Beskov	\N	\N	\N	190
-180	selectionneur	Billy	Bingham	\N	\N	\N	186
-181	selectionneur	José	de la Paz Herrera	\N	\N	\N	181
-182	selectionneur	Jupp	Derwall	\N	\N	\N	192
-183	selectionneur	Ron	Greenwood	\N	\N	\N	179
-184	selectionneur	Michel	Hidalgo	\N	\N	\N	180
-185	selectionneur	Mahieddine	Khalef	\N	\N	\N	170
-186	selectionneur	Felix	Latzke	\N	\N	\N	172
-187	selectionneur	Rachid	Mekhloufi	\N	\N	\N	170
-188	selectionneur	César Luis	Menotti	\N	\N	\N	171
-189	selectionneur	Kálmán	Mészöly	\N	\N	\N	182
-190	selectionneur	Miljan	Miljanić	\N	\N	\N	193
-191	selectionneur	Carlos Alberto	Parreira	\N	\N	\N	184
-192	selectionneur	Antoni	Piechniczek	\N	\N	\N	188
-193	selectionneur	Mauricio	Rodríguez	\N	\N	\N	178
-194	selectionneur	José	Santamaría	\N	\N	\N	191
-195	selectionneur	Telê	Santana	\N	\N	\N	174
-196	selectionneur	Luis	Santibáñez	\N	\N	\N	176
-197	selectionneur	Georg	Schmidt	\N	\N	\N	172
-198	selectionneur	Jock	Stein	\N	\N	\N	189
-199	selectionneur	Guy	Thys	\N	\N	\N	173
-200	selectionneur	not applicable	Tim	\N	\N	\N	187
-201	selectionneur	Jozef	Vengloš	\N	\N	\N	177
-202	selectionneur	Jean	Vincent	\N	\N	\N	175
-203	selectionneur	Enzo	Bearzot	\N	\N	\N	205
-204	selectionneur	Franz	Beckenbauer	\N	\N	\N	217
-205	selectionneur	Carlos	Bilardo	\N	\N	\N	195
-206	selectionneur	Billy	Bingham	\N	\N	\N	208
-207	selectionneur	Omar	Borrás	\N	\N	\N	216
-208	selectionneur	Evaristo	de Macedo	\N	\N	\N	204
-209	selectionneur	José	Faria	\N	\N	\N	207
-210	selectionneur	Alex	Ferguson	\N	\N	\N	212
-211	selectionneur	Jung-nam	Kim	\N	\N	\N	213
-212	selectionneur	Valeri	Lobanovsky	\N	\N	\N	214
-213	selectionneur	György	Mezey	\N	\N	\N	203
-214	selectionneur	Henri	Michel	\N	\N	\N	202
-215	selectionneur	Bora	Milutinović	\N	\N	\N	206
-216	selectionneur	Miguel	Muñoz	\N	\N	\N	215
-217	selectionneur	Antoni	Piechniczek	\N	\N	\N	210
-218	selectionneur	Sepp	Piontek	\N	\N	\N	200
-219	selectionneur	Cayetano	Ré	\N	\N	\N	209
-220	selectionneur	Bobby	Robson	\N	\N	\N	201
-221	selectionneur	Rabah	Saâdane	\N	\N	\N	194
-222	selectionneur	Telê	Santana	\N	\N	\N	197
-223	selectionneur	Guy	Thys	\N	\N	\N	196
-224	selectionneur	José	Torres	\N	\N	\N	211
-225	selectionneur	Ivan	Vutsov	\N	\N	\N	198
-226	selectionneur	Tony	Waiters	\N	\N	\N	199
-227	selectionneur	Mahmoud	Al-Gohari	\N	\N	\N	226
-228	selectionneur	Franz	Beckenbauer	\N	\N	\N	240
-229	selectionneur	Leo	Beenhakker	\N	\N	\N	229
-230	selectionneur	Carlos	Bilardo	\N	\N	\N	218
-231	selectionneur	Jack	Charlton	\N	\N	\N	230
-232	selectionneur	Bob	Gansler	\N	\N	\N	238
-233	selectionneur	Josef	Hickersberger	\N	\N	\N	219
-234	selectionneur	Emerich	Jenei	\N	\N	\N	231
-235	selectionneur	Sebastião	Lazaroni	\N	\N	\N	221
-236	selectionneur	Hoe-taik	Lee	\N	\N	\N	233
-237	selectionneur	Valeriy	Lobanovskyi	\N	\N	\N	234
-238	selectionneur	Francisco	Maturana	\N	\N	\N	223
-239	selectionneur	Bora	Milutinović	\N	\N	\N	224
-240	selectionneur	Valery	Nepomnyashchy	\N	\N	\N	222
-241	selectionneur	Olle	Nordin	\N	\N	\N	236
-242	selectionneur	Ivica	Osim	\N	\N	\N	241
-243	selectionneur	Carlos Alberto	Parreira	\N	\N	\N	237
-244	selectionneur	Bobby	Robson	\N	\N	\N	227
-245	selectionneur	Andy	Roxburgh	\N	\N	\N	232
-246	selectionneur	Luis	Suárez	\N	\N	\N	235
-247	selectionneur	Óscar	Tabárez	\N	\N	\N	239
-248	selectionneur	Guy	Thys	\N	\N	\N	220
-249	selectionneur	Jozef	Vengloš	\N	\N	\N	225
-250	selectionneur	Azeglio	Vicini	\N	\N	\N	228
-251	selectionneur	Gero	Bisanz	\N	\N	\N	246
-252	selectionneur	Dave	Boardman	\N	\N	\N	249
-253	selectionneur	Jo	Bonfrère	\N	\N	\N	250
-254	selectionneur	Tsu-pin	Chong	\N	\N	\N	244
-255	selectionneur	Anson	Dorrance	\N	\N	\N	253
-256	selectionneur	Keld	Gantzhorn	\N	\N	\N	245
-257	selectionneur	Sergio	Guenza	\N	\N	\N	247
-258	selectionneur	Gunilla	Paijkull	\N	\N	\N	252
-259	selectionneur	Even	Pellerud	\N	\N	\N	251
-260	selectionneur	Fernando	Pires	\N	\N	\N	242
-261	selectionneur	Ruihua	Shang	\N	\N	\N	243
-262	selectionneur	Tamotsu	Suzuki	\N	\N	\N	248
-263	selectionneur	Dick	Advocaat	\N	\N	\N	266
-264	selectionneur	Xabier	Azkargorta	\N	\N	\N	256
-265	selectionneur	Alfio	Basile	\N	\N	\N	254
-266	selectionneur	Abdellah	Blinda	\N	\N	\N	265
-267	selectionneur	Jack	Charlton	\N	\N	\N	269
-268	selectionneur	Javier	Clemente	\N	\N	\N	274
-269	selectionneur	Roy	Hodgson	\N	\N	\N	276
-270	selectionneur	Anghel	Iordănescu	\N	\N	\N	270
-271	selectionneur	Ho	Kim	\N	\N	\N	273
-272	selectionneur	Francisco	Maturana	\N	\N	\N	260
-273	selectionneur	Miguel	Mejía Barón	\N	\N	\N	264
-274	selectionneur	Henri	Michel	\N	\N	\N	259
-275	selectionneur	Bora	Milutinović	\N	\N	\N	277
-276	selectionneur	Egil	Olsen	\N	\N	\N	268
-277	selectionneur	Alketas	Panagoulias	\N	\N	\N	262
-278	selectionneur	Carlos Alberto	Parreira	\N	\N	\N	257
-279	selectionneur	Dimitar	Penev	\N	\N	\N	258
-280	selectionneur	Arrigo	Sacchi	\N	\N	\N	263
-281	selectionneur	Pavel	Sadyrin	\N	\N	\N	271
-282	selectionneur	Jorge	Solari	\N	\N	\N	272
-283	selectionneur	Tommy	Svensson	\N	\N	\N	275
-284	selectionneur	Paul	Van Himst	\N	\N	\N	255
-285	selectionneur	Berti	Vogts	\N	\N	\N	261
-286	selectionneur	Clemens	Westerhof	\N	\N	\N	267
-287	selectionneur	Sylvie	Béliveau	\N	\N	\N	280
-288	selectionneur	Gero	Bisanz	\N	\N	\N	284
-289	selectionneur	Ted	Copeland	\N	\N	\N	283
-290	selectionneur	Tony	DiCicco	\N	\N	\N	289
-291	selectionneur	Ademar	Fonseca	\N	\N	\N	279
-292	selectionneur	Keld	Gantzhorn	\N	\N	\N	282
-293	selectionneur	Paul	Hamilton	\N	\N	\N	286
-294	selectionneur	Yuanan	Ma	\N	\N	\N	281
-295	selectionneur	Even	Pellerud	\N	\N	\N	287
-296	selectionneur	Tom	Sermanni	\N	\N	\N	278
-297	selectionneur	Bengt	Simonsson	\N	\N	\N	288
-298	selectionneur	Tamotsu	Suzuki	\N	\N	\N	285
-299	selectionneur	Nelson	Acosta	\N	\N	\N	296
-300	selectionneur	Mohammed	Al-Kharashy	\N	\N	\N	314
-301	selectionneur	Miroslav	Blažević	\N	\N	\N	298
-302	selectionneur	Hristo	Bonev	\N	\N	\N	294
-303	selectionneur	Craig	Brown	\N	\N	\N	315
-304	selectionneur	Paulo César	Carpegiani	\N	\N	\N	312
-305	selectionneur	Bum-kun	Cha	\N	\N	\N	317
-306	selectionneur	Javier	Clemente	\N	\N	\N	318
-307	selectionneur	Hernán Darío	Gómez	\N	\N	\N	297
-308	selectionneur	Guus	Hiddink	\N	\N	\N	309
-309	selectionneur	Glenn	Hoddle	\N	\N	\N	300
-310	selectionneur	Anghel	Iordănescu	\N	\N	\N	313
-311	selectionneur	Aimé	Jacquet	\N	\N	\N	301
-312	selectionneur	Bo	Johansson	\N	\N	\N	299
-313	selectionneur	Henryk	Kasperczak	\N	\N	\N	319
-314	selectionneur	Manuel	Lapuente	\N	\N	\N	307
-315	selectionneur	Claude	Le Roy	\N	\N	\N	295
-316	selectionneur	Georges	Leekens	\N	\N	\N	292
-317	selectionneur	Cesare	Maldini	\N	\N	\N	304
-318	selectionneur	Henri	Michel	\N	\N	\N	308
-319	selectionneur	Bora	Milutinović	\N	\N	\N	310
-320	selectionneur	Takeshi	Okada	\N	\N	\N	306
-321	selectionneur	Egil	Olsen	\N	\N	\N	311
-322	selectionneur	Carlos Alberto	Parreira	\N	\N	\N	314
-323	selectionneur	Daniel	Passarella	\N	\N	\N	290
-324	selectionneur	Herbert	Prohaska	\N	\N	\N	291
-325	selectionneur	Steve	Sampson	\N	\N	\N	320
-326	selectionneur	Slobodan	Santrač	\N	\N	\N	321
-327	selectionneur	Ali	Selmi	\N	\N	\N	319
-328	selectionneur	Renê	Simões	\N	\N	\N	305
-329	selectionneur	Jalal	Talebi	\N	\N	\N	303
-330	selectionneur	Philippe	Troussier	\N	\N	\N	316
-331	selectionneur	Berti	Vogts	\N	\N	\N	302
-332	selectionneur	Mário	Zagallo	\N	\N	\N	293
-333	selectionneur	Emmanual Kwasi	Afranie	\N	\N	\N	328
-334	selectionneur	Greg	Brown	\N	\N	\N	322
-335	selectionneur	Yuri	Bystritsky	\N	\N	\N	335
-336	selectionneur	Leonardo	Cuéllar	\N	\N	\N	331
-337	selectionneur	Tony	DiCicco	\N	\N	\N	337
-338	selectionneur	Marika	Domanski-Lyfors	\N	\N	\N	336
-339	selectionneur	Carlo	Facchin	\N	\N	\N	329
-340	selectionneur	Per-Mathias	Høgmo	\N	\N	\N	334
-341	selectionneur	Jørgen	Hvidemose	\N	\N	\N	326
-342	selectionneur	Mabo	Ismaila	\N	\N	\N	332
-343	selectionneur	Yuanan	Ma	\N	\N	\N	325
-344	selectionneur	Satoshi	Miyauchi	\N	\N	\N	330
-345	selectionneur	Dong-chan	Myong	\N	\N	\N	333
-346	selectionneur	Tina	Theune-Meyer	\N	\N	\N	327
-347	selectionneur	Neil	Turnbull	\N	\N	\N	324
-348	selectionneur	not applicable	Wilsinho	\N	\N	\N	323
-349	selectionneur	Javier	Aguirre	\N	\N	\N	352
-350	selectionneur	Nasser	Al-Johar	\N	\N	\N	359
-351	selectionneur	Bruce	Arena	\N	\N	\N	368
-352	selectionneur	Marcelo	Bielsa	\N	\N	\N	338
-353	selectionneur	José Antonio	Camacho	\N	\N	\N	364
-354	selectionneur	Jerzy	Engel	\N	\N	\N	355
-355	selectionneur	Sven-Göran	Eriksson	\N	\N	\N	347
-356	selectionneur	Hernán Darío	Gómez	\N	\N	\N	346
-357	selectionneur	Alexandre	Guimarães	\N	\N	\N	343
-358	selectionneur	Şenol	Güneş	\N	\N	\N	367
-359	selectionneur	Guus	Hiddink	\N	\N	\N	363
-360	selectionneur	Mirko	Jozić	\N	\N	\N	344
-361	selectionneur	Srečko	Katanec	\N	\N	\N	361
-362	selectionneur	Lars	Lagerbäck	\N	\N	\N	365
-363	selectionneur	Roger	Lemerre	\N	\N	\N	348
-364	selectionneur	Cesare	Maldini	\N	\N	\N	354
-365	selectionneur	Mick	McCarthy	\N	\N	\N	357
-366	selectionneur	Bruno	Metsu	\N	\N	\N	360
-367	selectionneur	Bora	Milutinović	\N	\N	\N	342
-368	selectionneur	António	Oliveira	\N	\N	\N	356
-369	selectionneur	Morten	Olsen	\N	\N	\N	345
-370	selectionneur	Festus	Onigbinde	\N	\N	\N	353
-371	selectionneur	Víctor	Púa	\N	\N	\N	369
-372	selectionneur	Oleg	Romantsev	\N	\N	\N	358
-373	selectionneur	Winfried	Schäfer	\N	\N	\N	341
-374	selectionneur	Luiz Felipe	Scolari	\N	\N	\N	340
-375	selectionneur	Tommy	Söderberg	\N	\N	\N	365
-376	selectionneur	Jomo	Sono	\N	\N	\N	362
-377	selectionneur	Ammar	Souayah	\N	\N	\N	366
-378	selectionneur	Giovanni	Trapattoni	\N	\N	\N	350
-379	selectionneur	Philippe	Troussier	\N	\N	\N	351
-380	selectionneur	Rudi	Völler	\N	\N	\N	349
-381	selectionneur	Robert	Waseige	\N	\N	\N	339
-382	selectionneur	Jong-goan	An	\N	\N	\N	383
-383	selectionneur	Oko	Aryee	\N	\N	\N	377
-384	selectionneur	Carlos	Borrello	\N	\N	\N	370
-385	selectionneur	Yuri	Bystritsky	\N	\N	\N	382
-386	selectionneur	Marika	Domanski-Lyfors	\N	\N	\N	384
-387	selectionneur	Paulo	Gonçalves	\N	\N	\N	372
-388	selectionneur	April	Heinrichs	\N	\N	\N	385
-389	selectionneur	Élisabeth	Loisel	\N	\N	\N	375
-390	selectionneur	Liangxing	Ma	\N	\N	\N	374
-391	selectionneur	Samuel	Okpodu	\N	\N	\N	379
-392	selectionneur	Even	Pellerud	\N	\N	\N	373
-393	selectionneur	Song-gun	Ri	\N	\N	\N	380
-394	selectionneur	Adrian	Santrac	\N	\N	\N	371
-395	selectionneur	Åge	Steen	\N	\N	\N	381
-396	selectionneur	Tina	Theune-Meyer	\N	\N	\N	376
-397	selectionneur	Eiji	Ueda	\N	\N	\N	378
-398	selectionneur	Dick	Advocaat	\N	\N	\N	409
-399	selectionneur	Luis	Aragonés	\N	\N	\N	410
-400	selectionneur	Bruce	Arena	\N	\N	\N	417
-401	selectionneur	Leo	Beenhakker	\N	\N	\N	414
-402	selectionneur	Oleg	Blokhin	\N	\N	\N	416
-403	selectionneur	Karel	Brückner	\N	\N	\N	392
-404	selectionneur	Raymond	Domenech	\N	\N	\N	395
-405	selectionneur	Ratomir	Dujković	\N	\N	\N	397
-406	selectionneur	Sven-Göran	Eriksson	\N	\N	\N	394
-407	selectionneur	Oliveira	Gonçalves	\N	\N	\N	386
-408	selectionneur	Alexandre	Guimarães	\N	\N	\N	390
-409	selectionneur	Guus	Hiddink	\N	\N	\N	388
-410	selectionneur	Branko	Ivanković	\N	\N	\N	398
-411	selectionneur	Paweł	Janas	\N	\N	\N	405
-412	selectionneur	Jürgen	Klinsmann	\N	\N	\N	396
-413	selectionneur	Zlatko	Kranjčar	\N	\N	\N	391
-414	selectionneur	Köbi	Kuhn	\N	\N	\N	412
-415	selectionneur	Ricardo	La Volpe	\N	\N	\N	402
-416	selectionneur	Lars	Lagerbäck	\N	\N	\N	411
-417	selectionneur	Roger	Lemerre	\N	\N	\N	415
-418	selectionneur	Marcello	Lippi	\N	\N	\N	399
-419	selectionneur	Henri	Michel	\N	\N	\N	400
-420	selectionneur	Marcos	Paquetá	\N	\N	\N	407
-421	selectionneur	Carlos Alberto	Parreira	\N	\N	\N	389
-422	selectionneur	José	Pékerman	\N	\N	\N	387
-423	selectionneur	Ilija	Petković	\N	\N	\N	408
-424	selectionneur	Otto	Pfister	\N	\N	\N	413
-425	selectionneur	Aníbal	Ruiz	\N	\N	\N	404
-426	selectionneur	Luiz Felipe	Scolari	\N	\N	\N	406
-427	selectionneur	Luis Fernando	Suárez	\N	\N	\N	393
-428	selectionneur	Marco	van Basten	\N	\N	\N	403
-429	selectionneur	not applicable	Zico	\N	\N	\N	401
-430	selectionneur	Jorge	Barcellos	\N	\N	\N	420
-431	selectionneur	Bjarne	Berntsen	\N	\N	\N	431
-432	selectionneur	Carlos	Borrello	\N	\N	\N	418
-433	selectionneur	Thomas	Dennerby	\N	\N	\N	432
-434	selectionneur	Marika	Domanski-Lyfors	\N	\N	\N	422
-435	selectionneur	Ntiero	Effiom	\N	\N	\N	429
-436	selectionneur	Kenneth	Heiner-Møller	\N	\N	\N	423
-437	selectionneur	John	Herdman	\N	\N	\N	428
-438	selectionneur	Kwang-min	Kim	\N	\N	\N	430
-439	selectionneur	Silvia	Neid	\N	\N	\N	425
-440	selectionneur	Hiroshi	Ohashi	\N	\N	\N	427
-441	selectionneur	Isaac	Paha	\N	\N	\N	426
-442	selectionneur	Even	Pellerud	\N	\N	\N	421
-443	selectionneur	Hope	Powell	\N	\N	\N	424
-444	selectionneur	Greg	Ryan	\N	\N	\N	433
-445	selectionneur	Tom	Sermanni	\N	\N	\N	419
-446	selectionneur	Javier	Aguirre	\N	\N	\N	450
-447	selectionneur	Radomir	Antić	\N	\N	\N	457
-448	selectionneur	Marcelo	Bielsa	\N	\N	\N	439
-449	selectionneur	Bob	Bradley	\N	\N	\N	464
-450	selectionneur	Fabio	Capello	\N	\N	\N	441
-451	selectionneur	Vicente	del Bosque	\N	\N	\N	462
-452	selectionneur	Raymond	Domenech	\N	\N	\N	442
-453	selectionneur	not applicable	Dunga	\N	\N	\N	437
-454	selectionneur	Sven-Göran	Eriksson	\N	\N	\N	448
-455	selectionneur	Ricki	Herbert	\N	\N	\N	452
-456	selectionneur	Ottmar	Hitzfeld	\N	\N	\N	463
-457	selectionneur	Jung-moo	Huh	\N	\N	\N	461
-458	selectionneur	Matjaž	Kek	\N	\N	\N	459
-459	selectionneur	Jong-hun	Kim	\N	\N	\N	454
-460	selectionneur	Lars	Lagerbäck	\N	\N	\N	453
-461	selectionneur	Paul	Le Guen	\N	\N	\N	438
-462	selectionneur	Marcello	Lippi	\N	\N	\N	447
-463	selectionneur	Joachim	Löw	\N	\N	\N	443
-464	selectionneur	Diego	Maradona	\N	\N	\N	435
-465	selectionneur	Gerardo	Martino	\N	\N	\N	455
-466	selectionneur	Takeshi	Okada	\N	\N	\N	449
-467	selectionneur	Morten	Olsen	\N	\N	\N	440
-468	selectionneur	Carlos Alberto	Parreira	\N	\N	\N	460
-469	selectionneur	Carlos	Queiroz	\N	\N	\N	456
-470	selectionneur	Milovan	Rajevac	\N	\N	\N	444
-471	selectionneur	Otto	Rehhagel	\N	\N	\N	445
-472	selectionneur	Reinaldo	Rueda	\N	\N	\N	446
-473	selectionneur	Rabah	Saâdane	\N	\N	\N	434
-474	selectionneur	Óscar	Tabárez	\N	\N	\N	465
-475	selectionneur	Bert	van Marwijk	\N	\N	\N	451
-476	selectionneur	Pim	Verbeek	\N	\N	\N	436
-477	selectionneur	Vladimír	Weiss	\N	\N	\N	458
-478	selectionneur	Bruno	Bini	\N	\N	\N	472
-479	selectionneur	Leonardo	Cuéllar	\N	\N	\N	475
-480	selectionneur	Thomas	Dennerby	\N	\N	\N	480
-481	selectionneur	Marcello	Frigério	\N	\N	\N	471
-482	selectionneur	John	Herdman	\N	\N	\N	476
-483	selectionneur	Kwang-min	Kim	\N	\N	\N	478
-484	selectionneur	Eli	Landsem	\N	\N	\N	479
-485	selectionneur	Kleiton	lima	\N	\N	\N	467
-486	selectionneur	Carolina	Morace	\N	\N	\N	468
-487	selectionneur	Silvia	Neid	\N	\N	\N	473
-488	selectionneur	Hope	Powell	\N	\N	\N	470
-489	selectionneur	Ricardo	Rozo	\N	\N	\N	469
-490	selectionneur	Norio	Sasaki	\N	\N	\N	474
-491	selectionneur	Tom	Sermanni	\N	\N	\N	466
-492	selectionneur	Pia	Sundhage	\N	\N	\N	481
-493	selectionneur	Ngozi Eucharia	Uche	\N	\N	\N	477
-494	selectionneur	James Kwesi	Appiah	\N	\N	\N	497
-495	selectionneur	Paulo	Bento	\N	\N	\N	507
-496	selectionneur	Fabio	Capello	\N	\N	\N	508
-497	selectionneur	Vicente	del Bosque	\N	\N	\N	510
-498	selectionneur	Didier	Deschamps	\N	\N	\N	495
-499	selectionneur	Volker	Finke	\N	\N	\N	488
-500	selectionneur	Vahid	Halilhodžić	\N	\N	\N	482
-501	selectionneur	Miguel	Herrera	\N	\N	\N	504
-502	selectionneur	Ottmar	Hitzfeld	\N	\N	\N	511
-503	selectionneur	Roy	Hodgson	\N	\N	\N	494
-504	selectionneur	Myung-bo	Hong	\N	\N	\N	509
-505	selectionneur	Stephen	Keshi	\N	\N	\N	506
-506	selectionneur	Jürgen	Klinsmann	\N	\N	\N	512
-507	selectionneur	Niko	Kovač	\N	\N	\N	492
-508	selectionneur	Sabri	Lamouchi	\N	\N	\N	502
-509	selectionneur	Joachim	Löw	\N	\N	\N	496
-510	selectionneur	José	Pékerman	\N	\N	\N	490
-511	selectionneur	Jorge Luis	Pinto	\N	\N	\N	491
-512	selectionneur	Ange	Postecoglou	\N	\N	\N	484
-513	selectionneur	Cesare	Prandelli	\N	\N	\N	501
-514	selectionneur	Carlos	Queiroz	\N	\N	\N	500
-515	selectionneur	Reinaldo	Rueda	\N	\N	\N	493
-516	selectionneur	Alejandro	Sabella	\N	\N	\N	483
-517	selectionneur	Jorge	Sampaoli	\N	\N	\N	489
-518	selectionneur	Fernando	Santos	\N	\N	\N	498
-519	selectionneur	Luiz Felipe	Scolari	\N	\N	\N	487
-520	selectionneur	Luis Fernando	Suárez	\N	\N	\N	499
-521	selectionneur	Safet	Sušić	\N	\N	\N	486
-522	selectionneur	Óscar	Tabárez	\N	\N	\N	513
-523	selectionneur	Louis	van Gaal	\N	\N	\N	505
-524	selectionneur	Marc	Wilmots	\N	\N	\N	485
-525	selectionneur	Alberto	Zaccheroni	\N	\N	\N	503
-526	selectionneur	Vanessa	Arauz	\N	\N	\N	521
-527	selectionneur	Philippe	Bergeroo	\N	\N	\N	523
-528	selectionneur	Leonardo	Cuéllar	\N	\N	\N	527
-529	selectionneur	Jill	Ellis	\N	\N	\N	537
-530	selectionneur	Carl	Enow	\N	\N	\N	516
-531	selectionneur	Wei	Hao	\N	\N	\N	518
-532	selectionneur	John	Herdman	\N	\N	\N	517
-533	selectionneur	Silvia	Neid	\N	\N	\N	524
-534	selectionneur	Edwin	Okon	\N	\N	\N	530
-535	selectionneur	Even	Pellerud	\N	\N	\N	531
-536	selectionneur	Ignacio	Quereda	\N	\N	\N	533
-537	selectionneur	Tony	Readings	\N	\N	\N	529
-538	selectionneur	Roger	Reijners	\N	\N	\N	528
-539	selectionneur	Mark	Sampson	\N	\N	\N	522
-540	selectionneur	Norio	Sasaki	\N	\N	\N	526
-541	selectionneur	Nuengrutai	Srathongvian	\N	\N	\N	536
-542	selectionneur	Alen	Stajcic	\N	\N	\N	514
-543	selectionneur	Pia	Sundhage	\N	\N	\N	534
-544	selectionneur	Fabián	Taborda	\N	\N	\N	519
-545	selectionneur	Clémentine	Touré	\N	\N	\N	525
-546	selectionneur	not applicable	Vadão	\N	\N	\N	515
-547	selectionneur	Amelia	Valverde	\N	\N	\N	520
-548	selectionneur	Martina	Voss-Tecklenburg	\N	\N	\N	535
-549	selectionneur	Deok-yeo	Yoon	\N	\N	\N	532
-550	selectionneur	Janne	Andersson	\N	\N	\N	566
-551	selectionneur	Stanislav	Cherchesov	\N	\N	\N	560
-552	selectionneur	Aliou	Cissé	\N	\N	\N	562
-553	selectionneur	Héctor	Cúper	\N	\N	\N	546
-554	selectionneur	Zlatko	Dalić	\N	\N	\N	544
-555	selectionneur	Didier	Deschamps	\N	\N	\N	548
-556	selectionneur	Ricardo	Gareca	\N	\N	\N	557
-557	selectionneur	Hernán Darío	Gómez	\N	\N	\N	556
-558	selectionneur	Heimir	Hallgrímsson	\N	\N	\N	550
-559	selectionneur	Åge	Hareide	\N	\N	\N	545
-560	selectionneur	Fernando	Hierro	\N	\N	\N	565
-561	selectionneur	Mladen	Krstajić	\N	\N	\N	563
-562	selectionneur	Joachim	Löw	\N	\N	\N	549
-563	selectionneur	Nabil	Maâloul	\N	\N	\N	568
-564	selectionneur	Roberto	Martínez	\N	\N	\N	540
-565	selectionneur	Adam	Nawałka	\N	\N	\N	558
-566	selectionneur	Akira	Nishino	\N	\N	\N	552
-567	selectionneur	Juan Carlos	Osorio	\N	\N	\N	553
-568	selectionneur	José	Pékerman	\N	\N	\N	542
-569	selectionneur	Vladimir	Petković	\N	\N	\N	567
-570	selectionneur	Juan Antonio	Pizzi	\N	\N	\N	561
-571	selectionneur	Carlos	Queiroz	\N	\N	\N	551
-572	selectionneur	Óscar	Ramírez	\N	\N	\N	543
-573	selectionneur	Hervé	Renard	\N	\N	\N	554
-574	selectionneur	Gernot	Rohr	\N	\N	\N	555
-575	selectionneur	Jorge	Sampaoli	\N	\N	\N	538
-576	selectionneur	Fernando	Santos	\N	\N	\N	559
-577	selectionneur	Tae-yong	Shin	\N	\N	\N	564
-578	selectionneur	Gareth	Southgate	\N	\N	\N	547
-579	selectionneur	Óscar	Tabárez	\N	\N	\N	569
-580	selectionneur	not applicable	Tite	\N	\N	\N	541
-581	selectionneur	Bert	van Marwijk	\N	\N	\N	539
-582	selectionneur	Milena	Bertolini	\N	\N	\N	580
-583	selectionneur	Carlos	Borrello	\N	\N	\N	570
-584	selectionneur	Thomas	Dennerby	\N	\N	\N	585
-585	selectionneur	Corinne	Diacre	\N	\N	\N	578
-586	selectionneur	Alain	Djeumfa	\N	\N	\N	573
-587	selectionneur	Desiree	Ellis	\N	\N	\N	588
-588	selectionneur	Jill	Ellis	\N	\N	\N	593
-589	selectionneur	Peter	Gerhardsson	\N	\N	\N	591
-590	selectionneur	Kenneth	Heiner-Møller	\N	\N	\N	574
-591	selectionneur	Xiuquan	Jia	\N	\N	\N	576
-592	selectionneur	Shelley	Kerr	\N	\N	\N	587
-593	selectionneur	José	Letelier	\N	\N	\N	575
-594	selectionneur	Hue	Menzies	\N	\N	\N	581
-595	selectionneur	Ante	Milicic	\N	\N	\N	571
-596	selectionneur	Phil	Neville	\N	\N	\N	577
-597	selectionneur	Tom	Sermanni	\N	\N	\N	584
-598	selectionneur	Martin	Sjögren	\N	\N	\N	586
-599	selectionneur	Nuengrutai	Srathongvian	\N	\N	\N	592
-600	selectionneur	Asako	Takakura	\N	\N	\N	582
-601	selectionneur	not applicable	Vadão	\N	\N	\N	572
-602	selectionneur	Jorge	Vilda	\N	\N	\N	590
-603	selectionneur	Martina	Voss-Tecklenburg	\N	\N	\N	579
-604	selectionneur	Sarina	Wiegman	\N	\N	\N	583
-605	selectionneur	Deok-yeo	Yoon	\N	\N	\N	589
-606	selectionneur	Otto	Addo	\N	\N	\N	607
-607	selectionneur	Gustavo	Alfaro	\N	\N	\N	603
-608	selectionneur	Diego	Alonso	\N	\N	\N	624
-609	selectionneur	Graham	Arnold	\N	\N	\N	595
-610	selectionneur	Paulo	Bento	\N	\N	\N	619
-611	selectionneur	Gregg	Berhalter	\N	\N	\N	623
-612	selectionneur	Aliou	Cissé	\N	\N	\N	617
-613	selectionneur	Zlatko	Dalić	\N	\N	\N	601
-614	selectionneur	Didier	Deschamps	\N	\N	\N	605
-615	selectionneur	Luis	Enrique	\N	\N	\N	620
-616	selectionneur	Hansi	Flick	\N	\N	\N	606
-617	selectionneur	John	Herdman	\N	\N	\N	599
-618	selectionneur	Kasper	Hjulmand	\N	\N	\N	602
-619	selectionneur	Jalel	Kadri	\N	\N	\N	622
-620	selectionneur	Roberto	Martínez	\N	\N	\N	596
-621	selectionneur	Gerardo	Martino	\N	\N	\N	610
-622	selectionneur	Czesław	Michniewicz	\N	\N	\N	613
-623	selectionneur	Hajime	Moriyasu	\N	\N	\N	609
-624	selectionneur	Rob	Page	\N	\N	\N	625
-625	selectionneur	Carlos	Queiroz	\N	\N	\N	608
-626	selectionneur	Walid	Regragui	\N	\N	\N	611
-627	selectionneur	Hervé	Renard	\N	\N	\N	616
-628	selectionneur	Félix	Sánchez	\N	\N	\N	615
-629	selectionneur	Fernando	Santos	\N	\N	\N	614
-630	selectionneur	Lionel	Scaloni	\N	\N	\N	594
-631	selectionneur	Rigobert	Song	\N	\N	\N	598
-632	selectionneur	Gareth	Southgate	\N	\N	\N	604
-633	selectionneur	Dragan	Stojković	\N	\N	\N	618
-634	selectionneur	Luis Fernando	Suárez	\N	\N	\N	600
-635	selectionneur	not applicable	Tite	\N	\N	\N	597
-636	selectionneur	Louis	van Gaal	\N	\N	\N	612
-637	selectionneur	Murat	Yakin	\N	\N	\N	621
+COPY public.selectionneur (id_staff, prenomstaff, nomstaff, id_equipe) FROM stdin;
+1	Francisco	Bru	9
+2	Raoul	Caudron	6
+3	Píndaro	de Carvalho Rodrigues	4
+4	José	Durand Laguna	8
+5	Hector	Goetinck	2
+6	Juan	Luque de Serrallonga	7
+7	Robert	Millar	11
+8	Francisco	Olazar	1
+9	György	Orth	5
+10	Costel	Rădulescu	10
+11	Ulises	Saucedo	3
+12	Boško	Simonović	13
+13	Alberto	Suppici	12
+14	Juan José	Tramutola	1
+15	Amadeo	García	26
+16	Bob	Glendenning	24
+17	Hector	Goetinck	16
+18	David	Gould	29
+19	George	Kimpton	20
+20	James	McCrae	19
+21	Hugo	Meisl	15
+22	Heinrich	Müller	28
+23	Ödön	Nádas	22
+24	Otto	Nerz	21
+25	Felipe	Pascucci	14
+26	Karel	Petrů	18
+27	John	Pettersson	27
+28	Vittorio	Pozzo	23
+29	Costel	Rădulescu	25
+30	Josef	Uridil	25
+31	Luiz	Vinhaes	17
+32	Gaston	Barreau	35
+33	Jack	Butler	30
+34	Károly	Dietz	37
+35	Bob	Glendenning	39
+36	Asbjørn	Halvorsen	40
+37	Sepp	Herberger	36
+38	Józef	Kałuża	41
+39	Johan	Mastenbroek	34
+40	Josef	Meissner	33
+41	József	Nagy	43
+42	Adhemar	Pimenta	31
+43	Vittorio	Pozzo	38
+44	Costel	Rădulescu	42
+45	Karl	Rappan	44
+46	Alexandru	Săvulescu	42
+47	Alfréd	Schaffer	37
+48	José	Tapia	32
+49	Franco	Andreoli	54
+50	Milorad	Arsenijević	57
+51	Alberto	Buccicardi	47
+52	Flávio	Costa	46
+53	Guillermo	Eizaguirre	52
+54	Manuel	Fleitas Solich	51
+55	William	Jeffrey	55
+56	Juan	López	56
+57	Ferruccio	Novo	49
+58	Mario	Pretto	45
+59	George	Raynor	53
+60	Octavio	Vial	50
+61	Walter	Winterbottom	48
+62	Andy	Beattie	67
+63	Karol	Borhy	61
+64	Lajos	Czeizler	65
+65	Sepp	Herberger	72
+66	Yong-sik	Kim	68
+67	Doug	Livingstone	59
+68	Juan	López	71
+69	Antonio	López Herranz	66
+70	Zezé	Moreira	60
+71	Walter	Nausch	58
+72	Pierre	Pibarot	63
+73	Sandro	Puppo	70
+74	Karl	Rappan	69
+75	Gusztáv	Sebes	64
+76	Aleksandar	Tirnanić	73
+77	Walter	Winterbottom	62
+78	Karl	Argauer	75
+79	Lajos	Baróti	80
+80	Albert	Batteux	79
+81	Matt	Busby	84
+82	Peter	Doherty	82
+83	Vicente	Feola	76
+84	Aurelio	González	83
+85	Sepp	Herberger	88
+86	Gavriil	Kachalin	85
+87	Karel	Kolský	77
+88	Antonio	López Herranz	81
+89	Jimmy	Murphy	87
+90	George	Raynor	86
+91	Guillermo	Stábile	74
+92	Aleksandar	Tirnanić	89
+93	Dawson	Walker	84
+94	Walter	Winterbottom	78
+95	Lajos	Baróti	97
+96	Juan Carlos	Corazzo	103
+97	Giovanni	Ferrari	98
+98	Sepp	Herberger	104
+99	Helenio	Herrera	101
+100	Gavriil	Kachalin	100
+101	Juan Carlos	Lorenzo	90
+102	Ljubomir	Lovrić	105
+103	Paolo	Mazza	98
+104	Prvoslav	Mihajlović	105
+105	Aymoré	Moreira	91
+106	Georgi	Pachedzhiev	92
+107	Adolfo	Pedernera	94
+108	Karl	Rappan	102
+109	Fernando	Riera	93
+110	Ignacio	Tréllez	99
+111	Rudolf	Vytlačil	95
+112	Walter	Winterbottom	96
+113	Luis	Álamos	109
+114	Lajos	Baróti	112
+115	Edmondo	Fabbri	113
+116	Vicente	Feola	107
+117	Alfredo	Foni	119
+118	Otto	Glória	116
+119	Henri	Guérin	111
+120	Juan Carlos	Lorenzo	106
+121	Nikolai	Morozov	117
+122	Rye-hyun	Myung	115
+123	Alf	Ramsey	110
+124	Helmut	Schön	121
+125	Ignacio	Tréllez	114
+126	Ondino	Viera	120
+127	José	Villalonga	118
+128	Rudolf	Vytlačil	108
+129	Orvar	Bergmark	135
+130	Stefan	Bozhkov	124
+131	Raúl	Cárdenas	130
+132	Hernán	Carrasco	126
+133	not applicable	Didi	132
+134	Raymond	Goethals	122
+135	Juan	Hohberg	136
+136	Gavriil	Kachalin	134
+137	Jozef	Marko	125
+138	Angelo	Niculescu	133
+139	Alf	Ramsey	127
+140	Emmanuel	Scheffer	128
+141	Helmut	Schön	137
+142	Ferruccio	Valcareggi	129
+143	Blagoje	Vidinić	131
+144	Mário	Zagallo	123
+145	Luis	Álamos	142
+146	Georg	Buschner	143
+147	Vladislao	Cap	138
+148	Georg	Ericson	149
+149	Kazimierz	Górski	147
+150	Rinus	Michels	146
+151	Miljan	Miljanić	152
+152	Hristo	Mladenov	141
+153	Willie	Ormond	148
+154	Roberto	Porta	150
+155	Rale	Rasic	139
+156	Helmut	Schön	151
+157	Antoine	Tassy	144
+158	Ferruccio	Valcareggi	145
+159	Blagoje	Vidinić	153
+160	Mário	Zagallo	140
+161	Lajos	Baróti	158
+162	Enzo	Bearzot	160
+163	Marcos	Calderón	163
+164	Abdelmajid	Chetali	168
+165	Cláudio	Coutinho	156
+166	Georg	Ericson	167
+167	Jacek	Gmoch	164
+168	Ernst	Happel	162
+169	Michel	Hidalgo	157
+170	Ladislao	Kubala	166
+171	Ally	MacLeod	165
+172	César Luis	Menotti	154
+173	Heshmat	Mohajerani	159
+174	José Antonio	Roca	161
+175	Helmut	Schön	169
+176	Helmut	Senekowitsch	155
+177	John	Adshead	185
+178	Enzo	Bearzot	183
+179	Konstantin	Beskov	190
+180	Billy	Bingham	186
+181	José	de la Paz Herrera	181
+182	Jupp	Derwall	192
+183	Ron	Greenwood	179
+184	Michel	Hidalgo	180
+185	Mahieddine	Khalef	170
+186	Felix	Latzke	172
+187	Rachid	Mekhloufi	170
+188	César Luis	Menotti	171
+189	Kálmán	Mészöly	182
+190	Miljan	Miljanić	193
+191	Carlos Alberto	Parreira	184
+192	Antoni	Piechniczek	188
+193	Mauricio	Rodríguez	178
+194	José	Santamaría	191
+195	Telê	Santana	174
+196	Luis	Santibáñez	176
+197	Georg	Schmidt	172
+198	Jock	Stein	189
+199	Guy	Thys	173
+200	not applicable	Tim	187
+201	Jozef	Vengloš	177
+202	Jean	Vincent	175
+203	Enzo	Bearzot	205
+204	Franz	Beckenbauer	217
+205	Carlos	Bilardo	195
+206	Billy	Bingham	208
+207	Omar	Borrás	216
+208	Evaristo	de Macedo	204
+209	José	Faria	207
+210	Alex	Ferguson	212
+211	Jung-nam	Kim	213
+212	Valeri	Lobanovsky	214
+213	György	Mezey	203
+214	Henri	Michel	202
+215	Bora	Milutinović	206
+216	Miguel	Muñoz	215
+217	Antoni	Piechniczek	210
+218	Sepp	Piontek	200
+219	Cayetano	Ré	209
+220	Bobby	Robson	201
+221	Rabah	Saâdane	194
+222	Telê	Santana	197
+223	Guy	Thys	196
+224	José	Torres	211
+225	Ivan	Vutsov	198
+226	Tony	Waiters	199
+227	Mahmoud	Al-Gohari	226
+228	Franz	Beckenbauer	240
+229	Leo	Beenhakker	229
+230	Carlos	Bilardo	218
+231	Jack	Charlton	230
+232	Bob	Gansler	238
+233	Josef	Hickersberger	219
+234	Emerich	Jenei	231
+235	Sebastião	Lazaroni	221
+236	Hoe-taik	Lee	233
+237	Valeriy	Lobanovskyi	234
+238	Francisco	Maturana	223
+239	Bora	Milutinović	224
+240	Valery	Nepomnyashchy	222
+241	Olle	Nordin	236
+242	Ivica	Osim	241
+243	Carlos Alberto	Parreira	237
+244	Bobby	Robson	227
+245	Andy	Roxburgh	232
+246	Luis	Suárez	235
+247	Óscar	Tabárez	239
+248	Guy	Thys	220
+249	Jozef	Vengloš	225
+250	Azeglio	Vicini	228
+251	Gero	Bisanz	246
+252	Dave	Boardman	249
+253	Jo	Bonfrère	250
+254	Tsu-pin	Chong	244
+255	Anson	Dorrance	253
+256	Keld	Gantzhorn	245
+257	Sergio	Guenza	247
+258	Gunilla	Paijkull	252
+259	Even	Pellerud	251
+260	Fernando	Pires	242
+261	Ruihua	Shang	243
+262	Tamotsu	Suzuki	248
+263	Dick	Advocaat	266
+264	Xabier	Azkargorta	256
+265	Alfio	Basile	254
+266	Abdellah	Blinda	265
+267	Jack	Charlton	269
+268	Javier	Clemente	274
+269	Roy	Hodgson	276
+270	Anghel	Iordănescu	270
+271	Ho	Kim	273
+272	Francisco	Maturana	260
+273	Miguel	Mejía Barón	264
+274	Henri	Michel	259
+275	Bora	Milutinović	277
+276	Egil	Olsen	268
+277	Alketas	Panagoulias	262
+278	Carlos Alberto	Parreira	257
+279	Dimitar	Penev	258
+280	Arrigo	Sacchi	263
+281	Pavel	Sadyrin	271
+282	Jorge	Solari	272
+283	Tommy	Svensson	275
+284	Paul	Van Himst	255
+285	Berti	Vogts	261
+286	Clemens	Westerhof	267
+287	Sylvie	Béliveau	280
+288	Gero	Bisanz	284
+289	Ted	Copeland	283
+290	Tony	DiCicco	289
+291	Ademar	Fonseca	279
+292	Keld	Gantzhorn	282
+293	Paul	Hamilton	286
+294	Yuanan	Ma	281
+295	Even	Pellerud	287
+296	Tom	Sermanni	278
+297	Bengt	Simonsson	288
+298	Tamotsu	Suzuki	285
+299	Nelson	Acosta	296
+300	Mohammed	Al-Kharashy	314
+301	Miroslav	Blažević	298
+302	Hristo	Bonev	294
+303	Craig	Brown	315
+304	Paulo César	Carpegiani	312
+305	Bum-kun	Cha	317
+306	Javier	Clemente	318
+307	Hernán Darío	Gómez	297
+308	Guus	Hiddink	309
+309	Glenn	Hoddle	300
+310	Anghel	Iordănescu	313
+311	Aimé	Jacquet	301
+312	Bo	Johansson	299
+313	Henryk	Kasperczak	319
+314	Manuel	Lapuente	307
+315	Claude	Le Roy	295
+316	Georges	Leekens	292
+317	Cesare	Maldini	304
+318	Henri	Michel	308
+319	Bora	Milutinović	310
+320	Takeshi	Okada	306
+321	Egil	Olsen	311
+322	Carlos Alberto	Parreira	314
+323	Daniel	Passarella	290
+324	Herbert	Prohaska	291
+325	Steve	Sampson	320
+326	Slobodan	Santrač	321
+327	Ali	Selmi	319
+328	Renê	Simões	305
+329	Jalal	Talebi	303
+330	Philippe	Troussier	316
+331	Berti	Vogts	302
+332	Mário	Zagallo	293
+333	Emmanual Kwasi	Afranie	328
+334	Greg	Brown	322
+335	Yuri	Bystritsky	335
+336	Leonardo	Cuéllar	331
+337	Tony	DiCicco	337
+338	Marika	Domanski-Lyfors	336
+339	Carlo	Facchin	329
+340	Per-Mathias	Høgmo	334
+341	Jørgen	Hvidemose	326
+342	Mabo	Ismaila	332
+343	Yuanan	Ma	325
+344	Satoshi	Miyauchi	330
+345	Dong-chan	Myong	333
+346	Tina	Theune-Meyer	327
+347	Neil	Turnbull	324
+348	not applicable	Wilsinho	323
+349	Javier	Aguirre	352
+350	Nasser	Al-Johar	359
+351	Bruce	Arena	368
+352	Marcelo	Bielsa	338
+353	José Antonio	Camacho	364
+354	Jerzy	Engel	355
+355	Sven-Göran	Eriksson	347
+356	Hernán Darío	Gómez	346
+357	Alexandre	Guimarães	343
+358	Şenol	Güneş	367
+359	Guus	Hiddink	363
+360	Mirko	Jozić	344
+361	Srečko	Katanec	361
+362	Lars	Lagerbäck	365
+363	Roger	Lemerre	348
+364	Cesare	Maldini	354
+365	Mick	McCarthy	357
+366	Bruno	Metsu	360
+367	Bora	Milutinović	342
+368	António	Oliveira	356
+369	Morten	Olsen	345
+370	Festus	Onigbinde	353
+371	Víctor	Púa	369
+372	Oleg	Romantsev	358
+373	Winfried	Schäfer	341
+374	Luiz Felipe	Scolari	340
+375	Tommy	Söderberg	365
+376	Jomo	Sono	362
+377	Ammar	Souayah	366
+378	Giovanni	Trapattoni	350
+379	Philippe	Troussier	351
+380	Rudi	Völler	349
+381	Robert	Waseige	339
+382	Jong-goan	An	383
+383	Oko	Aryee	377
+384	Carlos	Borrello	370
+385	Yuri	Bystritsky	382
+386	Marika	Domanski-Lyfors	384
+387	Paulo	Gonçalves	372
+388	April	Heinrichs	385
+389	Élisabeth	Loisel	375
+390	Liangxing	Ma	374
+391	Samuel	Okpodu	379
+392	Even	Pellerud	373
+393	Song-gun	Ri	380
+394	Adrian	Santrac	371
+395	Åge	Steen	381
+396	Tina	Theune-Meyer	376
+397	Eiji	Ueda	378
+398	Dick	Advocaat	409
+399	Luis	Aragonés	410
+400	Bruce	Arena	417
+401	Leo	Beenhakker	414
+402	Oleg	Blokhin	416
+403	Karel	Brückner	392
+404	Raymond	Domenech	395
+405	Ratomir	Dujković	397
+406	Sven-Göran	Eriksson	394
+407	Oliveira	Gonçalves	386
+408	Alexandre	Guimarães	390
+409	Guus	Hiddink	388
+410	Branko	Ivanković	398
+411	Paweł	Janas	405
+412	Jürgen	Klinsmann	396
+413	Zlatko	Kranjčar	391
+414	Köbi	Kuhn	412
+415	Ricardo	La Volpe	402
+416	Lars	Lagerbäck	411
+417	Roger	Lemerre	415
+418	Marcello	Lippi	399
+419	Henri	Michel	400
+420	Marcos	Paquetá	407
+421	Carlos Alberto	Parreira	389
+422	José	Pékerman	387
+423	Ilija	Petković	408
+424	Otto	Pfister	413
+425	Aníbal	Ruiz	404
+426	Luiz Felipe	Scolari	406
+427	Luis Fernando	Suárez	393
+428	Marco	van Basten	403
+429	not applicable	Zico	401
+430	Jorge	Barcellos	420
+431	Bjarne	Berntsen	431
+432	Carlos	Borrello	418
+433	Thomas	Dennerby	432
+434	Marika	Domanski-Lyfors	422
+435	Ntiero	Effiom	429
+436	Kenneth	Heiner-Møller	423
+437	John	Herdman	428
+438	Kwang-min	Kim	430
+439	Silvia	Neid	425
+440	Hiroshi	Ohashi	427
+441	Isaac	Paha	426
+442	Even	Pellerud	421
+443	Hope	Powell	424
+444	Greg	Ryan	433
+445	Tom	Sermanni	419
+446	Javier	Aguirre	450
+447	Radomir	Antić	457
+448	Marcelo	Bielsa	439
+449	Bob	Bradley	464
+450	Fabio	Capello	441
+451	Vicente	del Bosque	462
+452	Raymond	Domenech	442
+453	not applicable	Dunga	437
+454	Sven-Göran	Eriksson	448
+455	Ricki	Herbert	452
+456	Ottmar	Hitzfeld	463
+457	Jung-moo	Huh	461
+458	Matjaž	Kek	459
+459	Jong-hun	Kim	454
+460	Lars	Lagerbäck	453
+461	Paul	Le Guen	438
+462	Marcello	Lippi	447
+463	Joachim	Löw	443
+464	Diego	Maradona	435
+465	Gerardo	Martino	455
+466	Takeshi	Okada	449
+467	Morten	Olsen	440
+468	Carlos Alberto	Parreira	460
+469	Carlos	Queiroz	456
+470	Milovan	Rajevac	444
+471	Otto	Rehhagel	445
+472	Reinaldo	Rueda	446
+473	Rabah	Saâdane	434
+474	Óscar	Tabárez	465
+475	Bert	van Marwijk	451
+476	Pim	Verbeek	436
+477	Vladimír	Weiss	458
+478	Bruno	Bini	472
+479	Leonardo	Cuéllar	475
+480	Thomas	Dennerby	480
+481	Marcello	Frigério	471
+482	John	Herdman	476
+483	Kwang-min	Kim	478
+484	Eli	Landsem	479
+485	Kleiton	lima	467
+486	Carolina	Morace	468
+487	Silvia	Neid	473
+488	Hope	Powell	470
+489	Ricardo	Rozo	469
+490	Norio	Sasaki	474
+491	Tom	Sermanni	466
+492	Pia	Sundhage	481
+493	Ngozi Eucharia	Uche	477
+494	James Kwesi	Appiah	497
+495	Paulo	Bento	507
+496	Fabio	Capello	508
+497	Vicente	del Bosque	510
+498	Didier	Deschamps	495
+499	Volker	Finke	488
+500	Vahid	Halilhodžić	482
+501	Miguel	Herrera	504
+502	Ottmar	Hitzfeld	511
+503	Roy	Hodgson	494
+504	Myung-bo	Hong	509
+505	Stephen	Keshi	506
+506	Jürgen	Klinsmann	512
+507	Niko	Kovač	492
+508	Sabri	Lamouchi	502
+509	Joachim	Löw	496
+510	José	Pékerman	490
+511	Jorge Luis	Pinto	491
+512	Ange	Postecoglou	484
+513	Cesare	Prandelli	501
+514	Carlos	Queiroz	500
+515	Reinaldo	Rueda	493
+516	Alejandro	Sabella	483
+517	Jorge	Sampaoli	489
+518	Fernando	Santos	498
+519	Luiz Felipe	Scolari	487
+520	Luis Fernando	Suárez	499
+521	Safet	Sušić	486
+522	Óscar	Tabárez	513
+523	Louis	van Gaal	505
+524	Marc	Wilmots	485
+525	Alberto	Zaccheroni	503
+526	Vanessa	Arauz	521
+527	Philippe	Bergeroo	523
+528	Leonardo	Cuéllar	527
+529	Jill	Ellis	537
+530	Carl	Enow	516
+531	Wei	Hao	518
+532	John	Herdman	517
+533	Silvia	Neid	524
+534	Edwin	Okon	530
+535	Even	Pellerud	531
+536	Ignacio	Quereda	533
+537	Tony	Readings	529
+538	Roger	Reijners	528
+539	Mark	Sampson	522
+540	Norio	Sasaki	526
+541	Nuengrutai	Srathongvian	536
+542	Alen	Stajcic	514
+543	Pia	Sundhage	534
+544	Fabián	Taborda	519
+545	Clémentine	Touré	525
+546	not applicable	Vadão	515
+547	Amelia	Valverde	520
+548	Martina	Voss-Tecklenburg	535
+549	Deok-yeo	Yoon	532
+550	Janne	Andersson	566
+551	Stanislav	Cherchesov	560
+552	Aliou	Cissé	562
+553	Héctor	Cúper	546
+554	Zlatko	Dalić	544
+555	Didier	Deschamps	548
+556	Ricardo	Gareca	557
+557	Hernán Darío	Gómez	556
+558	Heimir	Hallgrímsson	550
+559	Åge	Hareide	545
+560	Fernando	Hierro	565
+561	Mladen	Krstajić	563
+562	Joachim	Löw	549
+563	Nabil	Maâloul	568
+564	Roberto	Martínez	540
+565	Adam	Nawałka	558
+566	Akira	Nishino	552
+567	Juan Carlos	Osorio	553
+568	José	Pékerman	542
+569	Vladimir	Petković	567
+570	Juan Antonio	Pizzi	561
+571	Carlos	Queiroz	551
+572	Óscar	Ramírez	543
+573	Hervé	Renard	554
+574	Gernot	Rohr	555
+575	Jorge	Sampaoli	538
+576	Fernando	Santos	559
+577	Tae-yong	Shin	564
+578	Gareth	Southgate	547
+579	Óscar	Tabárez	569
+580	not applicable	Tite	541
+581	Bert	van Marwijk	539
+582	Milena	Bertolini	580
+583	Carlos	Borrello	570
+584	Thomas	Dennerby	585
+585	Corinne	Diacre	578
+586	Alain	Djeumfa	573
+587	Desiree	Ellis	588
+588	Jill	Ellis	593
+589	Peter	Gerhardsson	591
+590	Kenneth	Heiner-Møller	574
+591	Xiuquan	Jia	576
+592	Shelley	Kerr	587
+593	José	Letelier	575
+594	Hue	Menzies	581
+595	Ante	Milicic	571
+596	Phil	Neville	577
+597	Tom	Sermanni	584
+598	Martin	Sjögren	586
+599	Nuengrutai	Srathongvian	592
+600	Asako	Takakura	582
+601	not applicable	Vadão	572
+602	Jorge	Vilda	590
+603	Martina	Voss-Tecklenburg	579
+604	Sarina	Wiegman	583
+605	Deok-yeo	Yoon	589
+606	Otto	Addo	607
+607	Gustavo	Alfaro	603
+608	Diego	Alonso	624
+609	Graham	Arnold	595
+610	Paulo	Bento	619
+611	Gregg	Berhalter	623
+612	Aliou	Cissé	617
+613	Zlatko	Dalić	601
+614	Didier	Deschamps	605
+615	Luis	Enrique	620
+616	Hansi	Flick	606
+617	John	Herdman	599
+618	Kasper	Hjulmand	602
+619	Jalel	Kadri	622
+620	Roberto	Martínez	596
+621	Gerardo	Martino	610
+622	Czesław	Michniewicz	613
+623	Hajime	Moriyasu	609
+624	Rob	Page	625
+625	Carlos	Queiroz	608
+626	Walid	Regragui	611
+627	Hervé	Renard	616
+628	Félix	Sánchez	615
+629	Fernando	Santos	614
+630	Lionel	Scaloni	594
+631	Rigobert	Song	598
+632	Gareth	Southgate	604
+633	Dragan	Stojković	618
+634	Luis Fernando	Suárez	600
+635	not applicable	Tite	597
+636	Louis	van Gaal	612
+637	Murat	Yakin	621
 \.
 
 
@@ -26295,7 +27700,7 @@ COPY public.stafftechnique (id_staff, roleequipe, prenomstaff, nomstaff, journ, 
 -- Name: arbitres_id_arbitre_seq; Type: SEQUENCE SET; Schema: public; Owner: wcuser
 --
 
-SELECT pg_catalog.setval('public.arbitres_id_arbitre_seq', 1, false);
+SELECT pg_catalog.setval('public.arbitres_id_arbitre_seq', 1409, true);
 
 
 --
@@ -26438,10 +27843,10 @@ ALTER TABLE ONLY public.scorefinal
 
 
 --
--- Name: stafftechnique stafftechnique_pkey; Type: CONSTRAINT; Schema: public; Owner: wcuser
+-- Name: selectionneur stafftechnique_pkey; Type: CONSTRAINT; Schema: public; Owner: wcuser
 --
 
-ALTER TABLE ONLY public.stafftechnique
+ALTER TABLE ONLY public.selectionneur
     ADD CONSTRAINT stafftechnique_pkey PRIMARY KEY (id_staff);
 
 
@@ -26517,7 +27922,7 @@ ALTER TABLE ONLY public.entraine
 --
 
 ALTER TABLE ONLY public.entraine
-    ADD CONSTRAINT entraine_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES public.stafftechnique(id_staff) ON UPDATE CASCADE ON DELETE CASCADE;
+    ADD CONSTRAINT entraine_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES public.selectionneur(id_staff) ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 --
@@ -26597,7 +28002,7 @@ ALTER TABLE ONLY public.gere
 --
 
 ALTER TABLE ONLY public.equipe
-    ADD CONSTRAINT id_equipe_selectionneur FOREIGN KEY (id_selectionneur) REFERENCES public.stafftechnique(id_staff);
+    ADD CONSTRAINT id_equipe_selectionneur FOREIGN KEY (id_selectionneur) REFERENCES public.selectionneur(id_staff);
 
 
 --
@@ -26665,10 +28070,10 @@ ALTER TABLE ONLY public.scorefinal
 
 
 --
--- Name: stafftechnique stafftechnique_id_equipe_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
+-- Name: selectionneur stafftechnique_id_equipe_fkey; Type: FK CONSTRAINT; Schema: public; Owner: wcuser
 --
 
-ALTER TABLE ONLY public.stafftechnique
+ALTER TABLE ONLY public.selectionneur
     ADD CONSTRAINT stafftechnique_id_equipe_fkey FOREIGN KEY (id_equipe) REFERENCES public.equipe(id_equipe);
 
 
