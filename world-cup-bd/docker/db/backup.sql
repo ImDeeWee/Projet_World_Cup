@@ -78,23 +78,23 @@ ALTER TYPE public.type_role_arbitre OWNER TO wcuser;
 
 CREATE FUNCTION public.fn_donne_verifie_arbitre_principal() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    v_role type_role_arbitre;
-BEGIN
-    SELECT rolearbitre
-      INTO v_role
-      FROM arbitres
-     WHERE id_arbitre = NEW.arbitre_id;
-
-    IF v_role IS DISTINCT FROM 'Principal' THEN
-        RAISE EXCEPTION
-          'Arbitre % n''a pas le rôle ''Principal'' (actuel = %)',
-          NEW.arbitre_id, v_role;
-    END IF;
-
-    RETURN NEW;
-END;
+    AS $$
+DECLARE
+    v_role type_role_arbitre;
+BEGIN
+    SELECT rolearbitre
+      INTO v_role
+      FROM arbitres
+     WHERE id_arbitre = NEW.arbitre_id;
+
+    IF v_role IS DISTINCT FROM 'Principal' THEN
+        RAISE EXCEPTION
+          'Arbitre % n''a pas le rôle ''Principal'' (actuel = %)',
+          NEW.arbitre_id, v_role;
+    END IF;
+
+    RETURN NEW;
+END;
 $$;
 
 
@@ -106,42 +106,42 @@ ALTER FUNCTION public.fn_donne_verifie_arbitre_principal() OWNER TO wcuser;
 
 CREATE FUNCTION public.fn_faute_gestion_cartons() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    nb_jaunes  INT;
-    existe_rouge BOOLEAN;
-BEGIN
-    /* Y a-t-il déjà un rouge pour ce joueur dans ce match ? */
-    SELECT EXISTS (
-        SELECT 1
-          FROM faute
-         WHERE joueur_id = NEW.joueur_id
-           AND match_id  = NEW.match_id
-           AND typefaute = 'Rouge'
-    ) INTO existe_rouge;
-
-    IF existe_rouge THEN
-        RAISE EXCEPTION
-          'Le joueur % a déjà un carton rouge pour le match %, insertion refusée',
-          NEW.joueur_id, NEW.match_id;
-    END IF;
-
-    /* Si l’on ajoute un jaune, faut-il le transformer en rouge ? */
-    IF NEW.typefaute = 'Jaune' THEN
-        SELECT COUNT(*)
-          INTO nb_jaunes
-          FROM faute
-         WHERE joueur_id = NEW.joueur_id
-           AND match_id  = NEW.match_id
-           AND typefaute = 'Jaune';
-
-        IF nb_jaunes >= 1 THEN   -- c’est le 2ᵉ jaune
-            NEW.typefaute := 'Rouge';
-        END IF;
-    END IF;
-
-    RETURN NEW;
-END;
+    AS $$
+DECLARE
+    nb_jaunes  INT;
+    existe_rouge BOOLEAN;
+BEGIN
+    /* Y a-t-il déjà un rouge pour ce joueur dans ce match ? */
+    SELECT EXISTS (
+        SELECT 1
+          FROM faute
+         WHERE joueur_id = NEW.joueur_id
+           AND match_id  = NEW.match_id
+           AND typefaute = 'Rouge'
+    ) INTO existe_rouge;
+
+    IF existe_rouge THEN
+        RAISE EXCEPTION
+          'Le joueur % a déjà un carton rouge pour le match %, insertion refusée',
+          NEW.joueur_id, NEW.match_id;
+    END IF;
+
+    /* Si l’on ajoute un jaune, faut-il le transformer en rouge ? */
+    IF NEW.typefaute = 'Jaune' THEN
+        SELECT COUNT(*)
+          INTO nb_jaunes
+          FROM faute
+         WHERE joueur_id = NEW.joueur_id
+           AND match_id  = NEW.match_id
+           AND typefaute = 'Jaune';
+
+        IF nb_jaunes >= 1 THEN   -- c’est le 2ᵉ jaune
+            NEW.typefaute := 'Rouge';
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
 $$;
 
 
@@ -153,58 +153,58 @@ ALTER FUNCTION public.fn_faute_gestion_cartons() OWNER TO wcuser;
 
 CREATE FUNCTION public.fn_sync_gagnant() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    v_id_a       INT;
-    v_id_b       INT;
-    v_gagnant_id INT;
-BEGIN
-    /* 1) Récupère les infos du match visé */
-    SELECT id_equipea,
-           id_equipeb,
-           gagnant_id
-      INTO v_id_a,
-           v_id_b,
-           v_gagnant_id
-      FROM matchs
-     WHERE id_match = NEW.match_id;
-
-    /* 2) Victoire de l’équipe A */
-    IF NEW.pointequipea > NEW.pointequipeb THEN
-        IF v_gagnant_id IS NULL OR v_gagnant_id = v_id_a THEN
-            UPDATE matchs
-               SET gagnant_id = v_id_a
-             WHERE id_match  = NEW.match_id;
-        ELSE
-            RAISE EXCEPTION
-              'Incohérence : gagnant_id=% mais pointequipea (%) > pointequipeb (%) pour match %',
-              v_gagnant_id, NEW.pointequipea, NEW.pointequipeb, NEW.match_id;
-        END IF;
-
-    /* 3) Victoire de l’équipe B */
-    ELSIF NEW.pointequipeb > NEW.pointequipea THEN
-        IF v_gagnant_id IS NULL OR v_gagnant_id = v_id_b THEN
-            UPDATE matchs
-               SET gagnant_id = v_id_b
-             WHERE id_match  = NEW.match_id;
-        ELSE
-            RAISE EXCEPTION
-              'Incohérence : gagnant_id=% mais pointequipeb (%) > pointequipea (%) pour match %',
-              v_gagnant_id, NEW.pointequipeb, NEW.pointequipea, NEW.match_id;
-        END IF;
-
-    /* 4) Match nul */
-    ELSE  -- NEW.pointequipea = NEW.pointequipeb
-        IF v_gagnant_id IS NOT NULL THEN
-            RAISE EXCEPTION
-              'Match nul : la colonne gagnant_id doit être NULL (match %)',
-              NEW.match_id;
-        END IF;
-        -- Rien à faire si c’est déjà NULL
-    END IF;
-
-    RETURN NEW;      -- valide l'INSERT / UPDATE sur scorefinal
-END;
+    AS $$
+DECLARE
+    v_id_a       INT;
+    v_id_b       INT;
+    v_gagnant_id INT;
+BEGIN
+    /* 1) Récupère les infos du match visé */
+    SELECT id_equipea,
+           id_equipeb,
+           gagnant_id
+      INTO v_id_a,
+           v_id_b,
+           v_gagnant_id
+      FROM matchs
+     WHERE id_match = NEW.match_id;
+
+    /* 2) Victoire de l’équipe A */
+    IF NEW.pointequipea > NEW.pointequipeb THEN
+        IF v_gagnant_id IS NULL OR v_gagnant_id = v_id_a THEN
+            UPDATE matchs
+               SET gagnant_id = v_id_a
+             WHERE id_match  = NEW.match_id;
+        ELSE
+            RAISE EXCEPTION
+              'Incohérence : gagnant_id=% mais pointequipea (%) > pointequipeb (%) pour match %',
+              v_gagnant_id, NEW.pointequipea, NEW.pointequipeb, NEW.match_id;
+        END IF;
+
+    /* 3) Victoire de l’équipe B */
+    ELSIF NEW.pointequipeb > NEW.pointequipea THEN
+        IF v_gagnant_id IS NULL OR v_gagnant_id = v_id_b THEN
+            UPDATE matchs
+               SET gagnant_id = v_id_b
+             WHERE id_match  = NEW.match_id;
+        ELSE
+            RAISE EXCEPTION
+              'Incohérence : gagnant_id=% mais pointequipeb (%) > pointequipea (%) pour match %',
+              v_gagnant_id, NEW.pointequipeb, NEW.pointequipea, NEW.match_id;
+        END IF;
+
+    /* 4) Match nul */
+    ELSE  -- NEW.pointequipea = NEW.pointequipeb
+        IF v_gagnant_id IS NOT NULL THEN
+            RAISE EXCEPTION
+              'Match nul : la colonne gagnant_id doit être NULL (match %)',
+              NEW.match_id;
+        END IF;
+        -- Rien à faire si c’est déjà NULL
+    END IF;
+
+    RETURN NEW;      -- valide l'INSERT / UPDATE sur scorefinal
+END;
 $$;
 
 
@@ -216,64 +216,64 @@ ALTER FUNCTION public.fn_sync_gagnant() OWNER TO wcuser;
 
 CREATE FUNCTION public.fn_verifie_roles_arbitres() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    r_principal  type_role_arbitre;
-    r_assist1    type_role_arbitre;
-    r_assist2    type_role_arbitre;
-    r_assist3    type_role_arbitre;
-BEGIN
-    /* 2-a ► mêmes arbitres plusieurs fois ? */
-    IF NEW.arbitre_principal_id IN (NEW.arbitre_secondaire1_id,
-                                    NEW.arbitre_secondaire2_id,
-                                    NEW.arbitre_secondaire3_id)
-       OR NEW.arbitre_secondaire1_id IS NOT NULL
-          AND NEW.arbitre_secondaire1_id IN (NEW.arbitre_secondaire2_id,
-                                             NEW.arbitre_secondaire3_id)
-       OR NEW.arbitre_secondaire2_id IS NOT NULL
-          AND NEW.arbitre_secondaire2_id = NEW.arbitre_secondaire3_id
-    THEN
-        RAISE EXCEPTION
-          'Le même arbitre ne peut pas être assigné plus d’une fois pour le match %',
-          NEW.match_id;
-    END IF;
-
-    /* 2-b ► rôles conformes ? */
-    SELECT rolearbitre INTO r_principal
-      FROM arbitres WHERE id_arbitre = NEW.arbitre_principal_id;
-
-    IF r_principal IS DISTINCT FROM 'Principal' THEN
-        RAISE EXCEPTION
-          'L’’arbitre % doit avoir le rôle Principal (actuel = %)',
-          NEW.arbitre_principal_id, r_principal;
-    END IF;
-
-    SELECT rolearbitre INTO r_assist1
-      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire1_id;
-    IF r_assist1 IS DISTINCT FROM 'Assistant' THEN
-        RAISE EXCEPTION
-          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
-          NEW.arbitre_secondaire1_id, r_assist1;
-    END IF;
-
-    SELECT rolearbitre INTO r_assist2
-      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire2_id;
-    IF r_assist2 IS DISTINCT FROM 'Assistant' THEN
-        RAISE EXCEPTION
-          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
-          NEW.arbitre_secondaire2_id, r_assist2;
-    END IF;
-
-    SELECT rolearbitre INTO r_assist3
-      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire3_id;
-    IF r_assist3 IS DISTINCT FROM 'Assistant' THEN
-        RAISE EXCEPTION
-          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
-          NEW.arbitre_secondaire3_id, r_assist3;
-    END IF;
-
-    RETURN NEW;                -- validation réussie
-END;
+    AS $$
+DECLARE
+    r_principal  type_role_arbitre;
+    r_assist1    type_role_arbitre;
+    r_assist2    type_role_arbitre;
+    r_assist3    type_role_arbitre;
+BEGIN
+    /* 2-a ► mêmes arbitres plusieurs fois ? */
+    IF NEW.arbitre_principal_id IN (NEW.arbitre_secondaire1_id,
+                                    NEW.arbitre_secondaire2_id,
+                                    NEW.arbitre_secondaire3_id)
+       OR NEW.arbitre_secondaire1_id IS NOT NULL
+          AND NEW.arbitre_secondaire1_id IN (NEW.arbitre_secondaire2_id,
+                                             NEW.arbitre_secondaire3_id)
+       OR NEW.arbitre_secondaire2_id IS NOT NULL
+          AND NEW.arbitre_secondaire2_id = NEW.arbitre_secondaire3_id
+    THEN
+        RAISE EXCEPTION
+          'Le même arbitre ne peut pas être assigné plus d’une fois pour le match %',
+          NEW.match_id;
+    END IF;
+
+    /* 2-b ► rôles conformes ? */
+    SELECT rolearbitre INTO r_principal
+      FROM arbitres WHERE id_arbitre = NEW.arbitre_principal_id;
+
+    IF r_principal IS DISTINCT FROM 'Principal' THEN
+        RAISE EXCEPTION
+          'L’’arbitre % doit avoir le rôle Principal (actuel = %)',
+          NEW.arbitre_principal_id, r_principal;
+    END IF;
+
+    SELECT rolearbitre INTO r_assist1
+      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire1_id;
+    IF r_assist1 IS DISTINCT FROM 'Assistant' THEN
+        RAISE EXCEPTION
+          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
+          NEW.arbitre_secondaire1_id, r_assist1;
+    END IF;
+
+    SELECT rolearbitre INTO r_assist2
+      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire2_id;
+    IF r_assist2 IS DISTINCT FROM 'Assistant' THEN
+        RAISE EXCEPTION
+          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
+          NEW.arbitre_secondaire2_id, r_assist2;
+    END IF;
+
+    SELECT rolearbitre INTO r_assist3
+      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire3_id;
+    IF r_assist3 IS DISTINCT FROM 'Assistant' THEN
+        RAISE EXCEPTION
+          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
+          NEW.arbitre_secondaire3_id, r_assist3;
+    END IF;
+
+    RETURN NEW;                -- validation réussie
+END;
 $$;
 
 
@@ -285,30 +285,30 @@ ALTER FUNCTION public.fn_verifie_roles_arbitres() OWNER TO wcuser;
 
 CREATE FUNCTION public.joue_check_same_year() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    anneeA INT;
-    anneeB INT;
-BEGIN
-    -- récupérer l'année de chaque équipe
-    SELECT anneecoupe INTO anneeA
-    FROM   equipe
-    WHERE  id_equipe = NEW.id_equipeA;
-
-    SELECT anneecoupe INTO anneeB
-    FROM   equipe
-    WHERE  id_equipe = NEW.id_equipeB;
-
-    -- si l'une des deux lignes n'existe pas, FK lèvera déjà l'erreur ;
-    -- on vérifie seulement l'égalité
-    IF anneeA IS DISTINCT FROM anneeB THEN
-        RAISE EXCEPTION
-          'Les équipes % et % ne participent pas à la même édition : % vs %',
-          NEW.id_equipeA, NEW.id_equipeB, anneeA, anneeB;
-    END IF;
-
-    RETURN NEW;   -- tout est OK, on laisse passer
-END;
+    AS $$
+DECLARE
+    anneeA INT;
+    anneeB INT;
+BEGIN
+    -- récupérer l'année de chaque équipe
+    SELECT anneecoupe INTO anneeA
+    FROM   equipe
+    WHERE  id_equipe = NEW.id_equipeA;
+
+    SELECT anneecoupe INTO anneeB
+    FROM   equipe
+    WHERE  id_equipe = NEW.id_equipeB;
+
+    -- si l'une des deux lignes n'existe pas, FK lèvera déjà l'erreur ;
+    -- on vérifie seulement l'égalité
+    IF anneeA IS DISTINCT FROM anneeB THEN
+        RAISE EXCEPTION
+          'Les équipes % et % ne participent pas à la même édition : % vs %',
+          NEW.id_equipeA, NEW.id_equipeB, anneeA, anneeB;
+    END IF;
+
+    RETURN NEW;   -- tout est OK, on laisse passer
+END;
 $$;
 
 
@@ -718,6 +718,631 @@ COPY public.entraine (staff_id, id_equipe) FROM stdin;
 --
 
 COPY public.equipe (nompays, anneecoupe, id_capitaine, id_selectionneur, id_equipe) FROM stdin;
+Peru	1930	\N	1	9
+France	1930	\N	2	6
+Brazil	1930	\N	3	4
+Paraguay	1930	\N	4	8
+Belgium	1930	\N	5	2
+Mexico	1930	\N	6	7
+United States	1930	\N	7	11
+Argentina	1930	\N	8	1
+Chile	1930	\N	9	5
+Romania	1930	\N	10	10
+Bolivia	1930	\N	11	3
+Yugoslavia	1930	\N	12	13
+Uruguay	1930	\N	13	12
+Spain	1934	\N	15	26
+Netherlands	1934	\N	16	24
+Belgium	1934	\N	17	16
+United States	1934	\N	18	29
+France	1934	\N	19	20
+Egypt	1934	\N	20	19
+Austria	1934	\N	21	15
+Switzerland	1934	\N	22	28
+Hungary	1934	\N	23	22
+Germany	1934	\N	24	21
+Argentina	1934	\N	25	14
+Czechoslovakia	1934	\N	26	18
+Sweden	1934	\N	27	27
+Italy	1934	\N	28	23
+Romania	1934	\N	29	25
+Brazil	1934	\N	31	17
+France	1938	\N	32	35
+Belgium	1938	\N	33	30
+Hungary	1938	\N	34	37
+Netherlands	1938	\N	35	39
+Norway	1938	\N	36	40
+Germany	1938	\N	37	36
+Poland	1938	\N	38	41
+Dutch East Indies	1938	\N	39	34
+Czechoslovakia	1938	\N	40	33
+Sweden	1938	\N	41	43
+Brazil	1938	\N	42	31
+Italy	1938	\N	43	38
+Romania	1938	\N	44	42
+Switzerland	1938	\N	45	44
+Cuba	1938	\N	48	32
+Switzerland	1950	\N	49	54
+Yugoslavia	1950	\N	50	57
+Chile	1950	\N	51	47
+Brazil	1950	\N	52	46
+Spain	1950	\N	53	52
+Paraguay	1950	\N	54	51
+United States	1950	\N	55	55
+Uruguay	1950	\N	56	56
+Italy	1950	\N	57	49
+Bolivia	1950	\N	58	45
+Sweden	1950	\N	59	53
+Mexico	1950	\N	60	50
+England	1950	\N	61	48
+Scotland	1954	\N	62	67
+Czechoslovakia	1954	\N	63	61
+Italy	1954	\N	64	65
+West Germany	1954	\N	65	72
+South Korea	1954	\N	66	68
+Belgium	1954	\N	67	59
+Uruguay	1954	\N	68	71
+Mexico	1954	\N	69	66
+Brazil	1954	\N	70	60
+Austria	1954	\N	71	58
+France	1954	\N	72	63
+Turkey	1954	\N	73	70
+Switzerland	1954	\N	74	69
+Hungary	1954	\N	75	64
+Yugoslavia	1954	\N	76	73
+England	1954	\N	77	62
+Austria	1958	\N	78	75
+Hungary	1958	\N	79	80
+France	1958	\N	80	79
+Scotland	1958	\N	81	84
+Northern Ireland	1958	\N	82	82
+Brazil	1958	\N	83	76
+Paraguay	1958	\N	84	83
+West Germany	1958	\N	85	88
+Soviet Union	1958	\N	86	85
+Czechoslovakia	1958	\N	87	77
+Mexico	1958	\N	88	81
+Wales	1958	\N	89	87
+Sweden	1958	\N	90	86
+Argentina	1958	\N	91	74
+Yugoslavia	1958	\N	92	89
+England	1958	\N	94	78
+Hungary	1962	\N	95	97
+Uruguay	1962	\N	96	103
+Italy	1962	\N	97	98
+West Germany	1962	\N	98	104
+Spain	1962	\N	99	101
+Soviet Union	1962	\N	100	100
+Argentina	1962	\N	101	90
+Yugoslavia	1962	\N	102	105
+Brazil	1962	\N	105	91
+Bulgaria	1962	\N	106	92
+Colombia	1962	\N	107	94
+Switzerland	1962	\N	108	102
+Chile	1962	\N	109	93
+Mexico	1962	\N	110	99
+Czechoslovakia	1962	\N	111	95
+England	1962	\N	112	96
+Chile	1966	\N	113	109
+Hungary	1966	\N	114	112
+Italy	1966	\N	115	113
+Brazil	1966	\N	116	107
+Switzerland	1966	\N	117	119
+Portugal	1966	\N	118	116
+France	1966	\N	119	111
+Argentina	1966	\N	120	106
+Soviet Union	1966	\N	121	117
+North Korea	1966	\N	122	115
+England	1966	\N	123	110
+West Germany	1966	\N	124	121
+Mexico	1966	\N	125	114
+Uruguay	1966	\N	126	120
+Spain	1966	\N	127	118
+Bulgaria	1966	\N	128	108
+Sweden	1970	\N	129	135
+Bulgaria	1970	\N	130	124
+Mexico	1970	\N	131	130
+El Salvador	1970	\N	132	126
+Peru	1970	\N	133	132
+Belgium	1970	\N	134	122
+Uruguay	1970	\N	135	136
+Soviet Union	1970	\N	136	134
+Czechoslovakia	1970	\N	137	125
+Romania	1970	\N	138	133
+England	1970	\N	139	127
+Israel	1970	\N	140	128
+West Germany	1970	\N	141	137
+Italy	1970	\N	142	129
+Morocco	1970	\N	143	131
+Brazil	1970	\N	144	123
+Chile	1974	\N	145	142
+East Germany	1974	\N	146	143
+Argentina	1974	\N	147	138
+Sweden	1974	\N	148	149
+Poland	1974	\N	149	147
+Netherlands	1974	\N	150	146
+Yugoslavia	1974	\N	151	152
+Bulgaria	1974	\N	152	141
+Scotland	1974	\N	153	148
+Uruguay	1974	\N	154	150
+Australia	1974	\N	155	139
+West Germany	1974	\N	156	151
+Haiti	1974	\N	157	144
+Italy	1974	\N	158	145
+Zaire	1974	\N	159	153
+Brazil	1974	\N	160	140
+Hungary	1978	\N	161	158
+Italy	1978	\N	162	160
+Peru	1978	\N	163	163
+Tunisia	1978	\N	164	168
+Brazil	1978	\N	165	156
+Sweden	1978	\N	166	167
+Poland	1978	\N	167	164
+Netherlands	1978	\N	168	162
+France	1978	\N	169	157
+Spain	1978	\N	170	166
+Scotland	1978	\N	171	165
+Argentina	1978	\N	172	154
+Iran	1978	\N	173	159
+Mexico	1978	\N	174	161
+West Germany	1978	\N	175	169
+Austria	1978	\N	176	155
+New Zealand	1982	\N	177	185
+Italy	1982	\N	178	183
+Soviet Union	1982	\N	179	190
+Northern Ireland	1982	\N	180	186
+Honduras	1982	\N	181	181
+West Germany	1982	\N	182	192
+England	1982	\N	183	179
+France	1982	\N	184	180
+Algeria	1982	\N	185	170
+Austria	1982	\N	186	172
+Argentina	1982	\N	188	171
+Hungary	1982	\N	189	182
+Yugoslavia	1982	\N	190	193
+Kuwait	1982	\N	191	184
+Poland	1982	\N	192	188
+El Salvador	1982	\N	193	178
+Spain	1982	\N	194	191
+Brazil	1982	\N	195	174
+Chile	1982	\N	196	176
+Scotland	1982	\N	198	189
+Belgium	1982	\N	199	173
+Peru	1982	\N	200	187
+Czechoslovakia	1982	\N	201	177
+Cameroon	1982	\N	202	175
+Italy	1986	\N	203	205
+West Germany	1986	\N	204	217
+Argentina	1986	\N	205	195
+Northern Ireland	1986	\N	206	208
+Uruguay	1986	\N	207	216
+Iraq	1986	\N	208	204
+Morocco	1986	\N	209	207
+Scotland	1986	\N	210	212
+South Korea	1986	\N	211	213
+Soviet Union	1986	\N	212	214
+Hungary	1986	\N	213	203
+France	1986	\N	214	202
+Mexico	1986	\N	215	206
+Spain	1986	\N	216	215
+Poland	1986	\N	217	210
+Denmark	1986	\N	218	200
+Paraguay	1986	\N	219	209
+England	1986	\N	220	201
+Algeria	1986	\N	221	194
+Brazil	1986	\N	222	197
+Belgium	1986	\N	223	196
+Portugal	1986	\N	224	211
+Bulgaria	1986	\N	225	198
+Canada	1986	\N	226	199
+Egypt	1990	\N	227	226
+West Germany	1990	\N	228	240
+Netherlands	1990	\N	229	229
+Argentina	1990	\N	230	218
+Republic of Ireland	1990	\N	231	230
+United States	1990	\N	232	238
+Austria	1990	\N	233	219
+Romania	1990	\N	234	231
+Brazil	1990	\N	235	221
+South Korea	1990	\N	236	233
+Soviet Union	1990	\N	237	234
+Colombia	1990	\N	238	223
+Costa Rica	1990	\N	239	224
+Cameroon	1990	\N	240	222
+Sweden	1990	\N	241	236
+Yugoslavia	1990	\N	242	241
+United Arab Emirates	1990	\N	243	237
+England	1990	\N	244	227
+Scotland	1990	\N	245	232
+Spain	1990	\N	246	235
+Uruguay	1990	\N	247	239
+Belgium	1990	\N	248	220
+Czechoslovakia	1990	\N	249	225
+Italy	1990	\N	250	228
+Germany	1991	\N	251	246
+New Zealand	1991	\N	252	249
+Nigeria	1991	\N	253	250
+Chinese Taipei	1991	\N	254	244
+United States	1991	\N	255	253
+Denmark	1991	\N	256	245
+Italy	1991	\N	257	247
+Sweden	1991	\N	258	252
+Norway	1991	\N	259	251
+Brazil	1991	\N	260	242
+China	1991	\N	261	243
+Japan	1991	\N	262	248
+Netherlands	1994	\N	263	266
+Bolivia	1994	\N	264	256
+Argentina	1994	\N	265	254
+Morocco	1994	\N	266	265
+Republic of Ireland	1994	\N	267	269
+Spain	1994	\N	268	274
+Switzerland	1994	\N	269	276
+Romania	1994	\N	270	270
+South Korea	1994	\N	271	273
+Colombia	1994	\N	272	260
+Mexico	1994	\N	273	264
+Cameroon	1994	\N	274	259
+United States	1994	\N	275	277
+Norway	1994	\N	276	268
+Greece	1994	\N	277	262
+Brazil	1994	\N	278	257
+Bulgaria	1994	\N	279	258
+Italy	1994	\N	280	263
+Russia	1994	\N	281	271
+Saudi Arabia	1994	\N	282	272
+Sweden	1994	\N	283	275
+Belgium	1994	\N	284	255
+Germany	1994	\N	285	261
+Nigeria	1994	\N	286	267
+Canada	1995	\N	287	280
+Germany	1995	\N	288	284
+England	1995	\N	289	283
+United States	1995	\N	290	289
+Brazil	1995	\N	291	279
+Denmark	1995	\N	292	282
+Nigeria	1995	\N	293	286
+China	1995	\N	294	281
+Norway	1995	\N	295	287
+Australia	1995	\N	296	278
+Sweden	1995	\N	297	288
+Japan	1995	\N	298	285
+Chile	1998	\N	299	296
+Saudi Arabia	1998	\N	300	314
+Croatia	1998	\N	301	298
+Bulgaria	1998	\N	302	294
+Scotland	1998	\N	303	315
+Paraguay	1998	\N	304	312
+South Korea	1998	\N	305	317
+Spain	1998	\N	306	318
+Colombia	1998	\N	307	297
+Netherlands	1998	\N	308	309
+England	1998	\N	309	300
+Romania	1998	\N	310	313
+France	1998	\N	311	301
+Denmark	1998	\N	312	299
+Tunisia	1998	\N	313	319
+Mexico	1998	\N	314	307
+Cameroon	1998	\N	315	295
+Belgium	1998	\N	316	292
+Italy	1998	\N	317	304
+Morocco	1998	\N	318	308
+Nigeria	1998	\N	319	310
+Japan	1998	\N	320	306
+Norway	1998	\N	321	311
+Argentina	1998	\N	323	290
+Austria	1998	\N	324	291
+United States	1998	\N	325	320
+Yugoslavia	1998	\N	326	321
+Jamaica	1998	\N	328	305
+Iran	1998	\N	329	303
+South Africa	1998	\N	330	316
+Germany	1998	\N	331	302
+Brazil	1998	\N	332	293
+Ghana	1999	\N	333	328
+Australia	1999	\N	334	322
+Russia	1999	\N	335	335
+Mexico	1999	\N	336	331
+United States	1999	\N	337	337
+Sweden	1999	\N	338	336
+Italy	1999	\N	339	329
+Norway	1999	\N	340	334
+Denmark	1999	\N	341	326
+Nigeria	1999	\N	342	332
+China	1999	\N	343	325
+Japan	1999	\N	344	330
+North Korea	1999	\N	345	333
+Germany	1999	\N	346	327
+Canada	1999	\N	347	324
+Brazil	1999	\N	348	323
+Mexico	2002	\N	349	352
+Saudi Arabia	2002	\N	350	359
+United States	2002	\N	351	368
+Argentina	2002	\N	352	338
+Spain	2002	\N	353	364
+Poland	2002	\N	354	355
+England	2002	\N	355	347
+Ecuador	2002	\N	356	346
+Costa Rica	2002	\N	357	343
+Turkey	2002	\N	358	367
+South Korea	2002	\N	359	363
+Croatia	2002	\N	360	344
+Slovenia	2002	\N	361	361
+Sweden	2002	\N	362	365
+France	2002	\N	363	348
+Paraguay	2002	\N	364	354
+Republic of Ireland	2002	\N	365	357
+Senegal	2002	\N	366	360
+China	2002	\N	367	342
+Portugal	2002	\N	368	356
+Denmark	2002	\N	369	345
+Nigeria	2002	\N	370	353
+Uruguay	2002	\N	371	369
+Russia	2002	\N	372	358
+Cameroon	2002	\N	373	341
+Brazil	2002	\N	374	340
+South Africa	2002	\N	376	362
+Tunisia	2002	\N	377	366
+Italy	2002	\N	378	350
+Japan	2002	\N	379	351
+Germany	2002	\N	380	349
+Belgium	2002	\N	381	339
+South Korea	2003	\N	382	383
+Ghana	2003	\N	383	377
+Argentina	2003	\N	384	370
+Russia	2003	\N	385	382
+Sweden	2003	\N	386	384
+Brazil	2003	\N	387	372
+United States	2003	\N	388	385
+France	2003	\N	389	375
+China	2003	\N	390	374
+Nigeria	2003	\N	391	379
+Canada	2003	\N	392	373
+North Korea	2003	\N	393	380
+Australia	2003	\N	394	371
+Norway	2003	\N	395	381
+Germany	2003	\N	396	376
+Japan	2003	\N	397	378
+South Korea	2006	\N	398	409
+Spain	2006	\N	399	410
+United States	2006	\N	400	417
+Trinidad and Tobago	2006	\N	401	414
+Ukraine	2006	\N	402	416
+Czech Republic	2006	\N	403	392
+France	2006	\N	404	395
+Ghana	2006	\N	405	397
+England	2006	\N	406	394
+Angola	2006	\N	407	386
+Costa Rica	2006	\N	408	390
+Australia	2006	\N	409	388
+Iran	2006	\N	410	398
+Poland	2006	\N	411	405
+Germany	2006	\N	412	396
+Croatia	2006	\N	413	391
+Switzerland	2006	\N	414	412
+Mexico	2006	\N	415	402
+Sweden	2006	\N	416	411
+Tunisia	2006	\N	417	415
+Italy	2006	\N	418	399
+Ivory Coast	2006	\N	419	400
+Saudi Arabia	2006	\N	420	407
+Brazil	2006	\N	421	389
+Argentina	2006	\N	422	387
+Serbia and Montenegro	2006	\N	423	408
+Togo	2006	\N	424	413
+Paraguay	2006	\N	425	404
+Portugal	2006	\N	426	406
+Ecuador	2006	\N	427	393
+Netherlands	2006	\N	428	403
+Japan	2006	\N	429	401
+Brazil	2007	\N	430	420
+Norway	2007	\N	431	431
+Argentina	2007	\N	432	418
+Sweden	2007	\N	433	432
+China	2007	\N	434	422
+Nigeria	2007	\N	435	429
+Denmark	2007	\N	436	423
+New Zealand	2007	\N	437	428
+North Korea	2007	\N	438	430
+Germany	2007	\N	439	425
+Japan	2007	\N	440	427
+Ghana	2007	\N	441	426
+Canada	2007	\N	442	421
+England	2007	\N	443	424
+United States	2007	\N	444	433
+Australia	2007	\N	445	419
+Mexico	2010	\N	446	450
+Serbia	2010	\N	447	457
+Chile	2010	\N	448	439
+United States	2010	\N	449	464
+England	2010	\N	450	441
+Spain	2010	\N	451	462
+France	2010	\N	452	442
+Brazil	2010	\N	453	437
+Ivory Coast	2010	\N	454	448
+New Zealand	2010	\N	455	452
+Switzerland	2010	\N	456	463
+South Korea	2010	\N	457	461
+Slovenia	2010	\N	458	459
+North Korea	2010	\N	459	454
+Nigeria	2010	\N	460	453
+Cameroon	2010	\N	461	438
+Italy	2010	\N	462	447
+Germany	2010	\N	463	443
+Argentina	2010	\N	464	435
+Paraguay	2010	\N	465	455
+Japan	2010	\N	466	449
+Denmark	2010	\N	467	440
+South Africa	2010	\N	468	460
+Portugal	2010	\N	469	456
+Ghana	2010	\N	470	444
+Greece	2010	\N	471	445
+Honduras	2010	\N	472	446
+Algeria	2010	\N	473	434
+Uruguay	2010	\N	474	465
+Netherlands	2010	\N	475	451
+Australia	2010	\N	476	436
+Slovakia	2010	\N	477	458
+France	2011	\N	478	472
+Mexico	2011	\N	479	475
+Sweden	2011	\N	480	480
+Equatorial Guinea	2011	\N	481	471
+New Zealand	2011	\N	482	476
+North Korea	2011	\N	483	478
+Norway	2011	\N	484	479
+Brazil	2011	\N	485	467
+Canada	2011	\N	486	468
+Germany	2011	\N	487	473
+England	2011	\N	488	470
+Colombia	2011	\N	489	469
+Japan	2011	\N	490	474
+Australia	2011	\N	491	466
+United States	2011	\N	492	481
+Nigeria	2011	\N	493	477
+Ghana	2014	\N	494	497
+Portugal	2014	\N	495	507
+Russia	2014	\N	496	508
+Spain	2014	\N	497	510
+France	2014	\N	498	495
+Cameroon	2014	\N	499	488
+Algeria	2014	\N	500	482
+Mexico	2014	\N	501	504
+Switzerland	2014	\N	502	511
+England	2014	\N	503	494
+South Korea	2014	\N	504	509
+Nigeria	2014	\N	505	506
+United States	2014	\N	506	512
+Croatia	2014	\N	507	492
+Ivory Coast	2014	\N	508	502
+Germany	2014	\N	509	496
+Colombia	2014	\N	510	490
+Costa Rica	2014	\N	511	491
+Australia	2014	\N	512	484
+Italy	2014	\N	513	501
+Iran	2014	\N	514	500
+Ecuador	2014	\N	515	493
+Argentina	2014	\N	516	483
+Chile	2014	\N	517	489
+Greece	2014	\N	518	498
+Brazil	2014	\N	519	487
+Honduras	2014	\N	520	499
+Bosnia and Herzegovina	2014	\N	521	486
+Uruguay	2014	\N	522	513
+Netherlands	2014	\N	523	505
+Belgium	2014	\N	524	485
+Japan	2014	\N	525	503
+Ecuador	2015	\N	526	521
+France	2015	\N	527	523
+Mexico	2015	\N	528	527
+United States	2015	\N	529	537
+Cameroon	2015	\N	530	516
+China	2015	\N	531	518
+Canada	2015	\N	532	517
+Germany	2015	\N	533	524
+Nigeria	2015	\N	534	530
+Norway	2015	\N	535	531
+Spain	2015	\N	536	533
+New Zealand	2015	\N	537	529
+Netherlands	2015	\N	538	528
+England	2015	\N	539	522
+Japan	2015	\N	540	526
+Thailand	2015	\N	541	536
+Australia	2015	\N	542	514
+Sweden	2015	\N	543	534
+Colombia	2015	\N	544	519
+Ivory Coast	2015	\N	545	525
+Brazil	2015	\N	546	515
+Costa Rica	2015	\N	547	520
+Switzerland	2015	\N	548	535
+South Korea	2015	\N	549	532
+Sweden	2018	\N	550	566
+Russia	2018	\N	551	560
+Senegal	2018	\N	552	562
+Egypt	2018	\N	553	546
+Croatia	2018	\N	554	544
+France	2018	\N	555	548
+Peru	2018	\N	556	557
+Panama	2018	\N	557	556
+Iceland	2018	\N	558	550
+Denmark	2018	\N	559	545
+Spain	2018	\N	560	565
+Serbia	2018	\N	561	563
+Germany	2018	\N	562	549
+Tunisia	2018	\N	563	568
+Belgium	2018	\N	564	540
+Poland	2018	\N	565	558
+Japan	2018	\N	566	552
+Mexico	2018	\N	567	553
+Colombia	2018	\N	568	542
+Switzerland	2018	\N	569	567
+Saudi Arabia	2018	\N	570	561
+Iran	2018	\N	571	551
+Costa Rica	2018	\N	572	543
+Morocco	2018	\N	573	554
+Nigeria	2018	\N	574	555
+Argentina	2018	\N	575	538
+Portugal	2018	\N	576	559
+South Korea	2018	\N	577	564
+England	2018	\N	578	547
+Uruguay	2018	\N	579	569
+Brazil	2018	\N	580	541
+Australia	2018	\N	581	539
+Italy	2019	\N	582	580
+Argentina	2019	\N	583	570
+Nigeria	2019	\N	584	585
+France	2019	\N	585	578
+Cameroon	2019	\N	586	573
+South Africa	2019	\N	587	588
+United States	2019	\N	588	593
+Sweden	2019	\N	589	591
+Canada	2019	\N	590	574
+China	2019	\N	591	576
+Scotland	2019	\N	592	587
+Chile	2019	\N	593	575
+Jamaica	2019	\N	594	581
+Australia	2019	\N	595	571
+England	2019	\N	596	577
+New Zealand	2019	\N	597	584
+Norway	2019	\N	598	586
+Thailand	2019	\N	599	592
+Japan	2019	\N	600	582
+Brazil	2019	\N	601	572
+Spain	2019	\N	602	590
+Germany	2019	\N	603	579
+Netherlands	2019	\N	604	583
+South Korea	2019	\N	605	589
+Ghana	2022	\N	606	607
+Ecuador	2022	\N	607	603
+Uruguay	2022	\N	608	624
+Australia	2022	\N	609	595
+South Korea	2022	\N	610	619
+United States	2022	\N	611	623
+Senegal	2022	\N	612	617
+Croatia	2022	\N	613	601
+France	2022	\N	614	605
+Spain	2022	\N	615	620
+Germany	2022	\N	616	606
+Canada	2022	\N	617	599
+Denmark	2022	\N	618	602
+Tunisia	2022	\N	619	622
+Belgium	2022	\N	620	596
+Mexico	2022	\N	621	610
+Poland	2022	\N	622	613
+Japan	2022	\N	623	609
+Wales	2022	\N	624	625
+Iran	2022	\N	625	608
+Morocco	2022	\N	626	611
+Saudi Arabia	2022	\N	627	616
+Qatar	2022	\N	628	615
+Portugal	2022	\N	629	614
+Argentina	2022	\N	630	594
+Cameroon	2022	\N	631	598
+England	2022	\N	632	604
+Serbia	2022	\N	633	618
+Costa Rica	2022	\N	634	600
+Brazil	2022	\N	635	597
+Netherlands	2022	\N	636	612
+Switzerland	2022	\N	637	621
 \.
 
 
@@ -6181,6 +6806,7 @@ COPY public.joueur (id_joueur, numero, prenom, nomfamille, journ, moisn, anneen,
 16954	2	Abdelilah	Saber	21	4	1974	M
 66082	4	Youssef	Rossi	28	6	1973	M
 76158	8	Saïd	Chiba	18	9	1970	M
+21776	20	Loïc	Rémy	2	1	1987	M
 14349	9	Abdeljalil	Hadda	21	3	1972	M
 56643	10	Abderrahim	Ouakili	11	12	1970	M
 80057	11	Ali	Elkhattabi	17	1	1977	M
@@ -9069,7 +9695,6 @@ COPY public.joueur (id_joueur, numero, prenom, nomfamille, journ, moisn, anneen,
 67129	17	Lucas	Digne	20	7	1993	M
 7870	18	Moussa	Sissoko	16	8	1989	M
 17509	19	Paul	Pogba	15	3	1993	M
-21776	20	Loïc	Rémy	2	1	1987	M
 91114	21	Laurent	Koscielny	10	9	1985	M
 45182	22	Morgan	Schneiderlin	8	11	1989	M
 97775	2	Kevin	Großkreutz	19	7	1988	M
@@ -11167,6 +11792,13849 @@ COPY public.matchs (id_match, jourm, moism, rang, stade, arbitreprincipal_id, id
 --
 
 COPY public.possede (equipe_id, joueur_id) FROM stdin;
+1	69244
+1	23160
+1	99230
+1	41921
+1	22739
+1	30720
+1	30543
+1	23897
+1	60505
+1	25760
+1	49556
+1	91238
+1	58537
+1	24312
+1	70166
+1	49151
+1	44916
+1	21441
+1	56486
+1	56908
+1	37326
+1	76546
+2	92795
+2	20690
+2	40714
+2	41990
+2	97126
+2	93713
+2	41710
+2	45315
+2	16891
+2	61253
+2	44475
+2	74839
+2	46390
+2	28503
+2	69286
+2	85443
+3	43807
+3	62751
+3	95008
+3	97354
+3	16019
+3	36835
+3	69877
+3	61667
+3	48216
+3	92600
+3	84833
+3	92838
+3	93364
+3	56114
+3	35684
+3	369
+3	67934
+4	13299
+4	70170
+4	11648
+4	81166
+4	58460
+4	52323
+4	708
+4	49818
+4	29865
+4	92427
+4	16656
+4	72889
+4	30679
+4	49633
+4	83987
+4	10526
+4	52064
+4	32535
+4	38379
+4	91171
+4	82422
+4	26796
+4	28745
+4	22493
+5	95800
+5	33635
+5	54301
+5	88235
+5	1278
+5	41928
+5	32614
+5	7122
+5	66860
+5	19195
+5	97943
+5	85142
+5	49261
+5	89829
+5	8459
+5	10927
+5	28795
+5	61338
+5	65664
+6	68817
+6	77318
+6	83054
+6	10604
+6	53878
+6	99087
+6	73308
+6	5470
+6	89688
+6	60620
+6	67332
+6	58728
+6	62322
+6	50248
+6	2281
+6	48345
+7	36379
+7	33560
+7	94135
+7	33321
+7	43777
+7	41910
+7	31066
+7	84297
+7	21313
+7	27734
+7	31687
+7	58196
+7	8566
+7	89481
+7	17565
+7	83291
+7	65099
+8	33814
+8	35834
+8	30741
+8	78377
+8	61392
+8	51301
+8	68567
+8	37309
+8	21707
+8	8814
+8	54557
+8	86082
+8	65504
+8	64697
+8	4623
+8	98075
+8	11035
+8	9057
+8	4417
+8	51624
+8	6201
+8	51390
+9	35875
+9	45407
+9	79515
+9	7526
+9	45649
+9	64036
+9	38495
+9	29687
+9	93477
+9	44526
+9	57115
+9	71799
+9	19170
+9	6866
+9	8526
+9	27561
+9	36167
+9	66691
+9	44010
+9	89076
+9	41536
+9	36243
+10	99417
+10	62376
+10	27752
+10	91295
+10	20672
+10	70294
+10	9282
+10	7972
+10	2455
+10	18615
+10	51872
+10	81554
+10	22907
+10	85622
+10	22304
+11	58795
+11	94425
+11	6424
+11	12437
+11	37361
+11	99522
+11	733
+11	85569
+11	65185
+11	25155
+11	46121
+11	71973
+11	47437
+11	4110
+11	49855
+11	56459
+12	63826
+12	57352
+12	63987
+12	47453
+12	76186
+12	54697
+12	18628
+12	38674
+12	53856
+12	39785
+12	31959
+12	49150
+12	55304
+12	76270
+12	93278
+12	41238
+12	63026
+12	98216
+12	93344
+12	44201
+12	86932
+12	17569
+13	72808
+13	43734
+13	13261
+13	15059
+13	44887
+13	24808
+13	75929
+13	10671
+13	19712
+13	91900
+13	94965
+13	74878
+13	62267
+13	55273
+13	43349
+13	59061
+13	33565
+14	32516
+14	42498
+14	11019
+14	21951
+14	5185
+14	98837
+14	61839
+14	33940
+14	82803
+14	2358
+14	32246
+14	5772
+14	64351
+14	15166
+14	16377
+14	94114
+14	33461
+14	95620
+15	51668
+15	37758
+15	72888
+15	28322
+15	32150
+15	94617
+15	51711
+15	92579
+15	48419
+15	14775
+15	17740
+15	87474
+15	14790
+15	5609
+15	11865
+15	71630
+15	30750
+15	97102
+15	65339
+15	39159
+15	19490
+15	5719
+16	20690
+16	57945
+16	56476
+16	27187
+16	89966
+16	31088
+16	28338
+16	61253
+16	97896
+16	356
+16	3817
+16	93825
+16	51930
+16	11200
+16	81829
+16	87214
+16	38767
+16	97759
+16	32287
+16	69286
+16	85443
+16	1972
+17	63886
+17	32881
+17	91413
+17	7398
+17	3130
+17	52951
+17	48079
+17	93712
+17	72889
+17	9730
+17	35048
+17	66864
+17	70690
+17	77114
+17	32535
+17	85795
+17	8627
+17	3576
+17	93990
+18	94788
+18	76056
+18	28531
+18	68716
+18	70254
+18	19582
+18	88929
+18	64425
+18	53978
+18	30773
+18	60513
+18	70970
+18	52528
+18	51219
+18	23820
+18	94005
+18	58983
+18	57162
+18	21644
+18	13470
+18	64843
+18	42431
+19	87740
+19	78354
+19	62813
+19	76014
+19	96407
+19	82850
+19	28239
+19	44834
+19	18819
+19	66692
+19	55444
+19	45036
+19	13156
+19	17075
+19	46343
+19	12336
+19	1246
+19	48383
+19	96789
+19	67758
+20	9225
+20	93801
+20	45731
+20	52655
+20	36153
+20	10604
+20	53878
+20	30130
+20	84475
+20	26041
+20	45865
+20	5470
+20	26292
+20	59589
+20	69033
+20	67332
+20	70804
+20	49701
+20	50248
+20	46249
+20	2281
+20	13166
+21	82536
+21	54695
+21	81440
+21	27770
+21	77348
+21	74210
+21	27139
+21	69645
+21	99592
+21	56231
+21	90001
+21	24404
+21	4241
+21	74349
+21	38753
+21	60828
+21	30818
+21	72423
+21	53238
+21	92333
+21	86518
+21	85695
+22	18927
+22	81185
+22	31849
+22	26210
+22	70689
+22	81445
+22	54489
+22	23517
+22	32085
+22	10473
+22	89034
+22	9142
+22	14531
+22	60980
+22	29081
+22	99214
+22	37684
+22	38660
+22	42669
+22	60977
+22	91259
+22	11520
+23	22402
+23	80654
+23	60679
+23	40103
+23	84232
+23	56674
+23	77995
+23	57546
+23	30720
+23	39512
+23	76282
+23	3545
+23	16965
+23	93906
+23	34536
+23	25760
+23	58691
+23	3638
+23	10605
+23	30373
+23	56703
+23	95210
+24	51120
+24	74001
+24	69466
+24	8052
+24	84091
+24	81649
+24	75398
+24	19181
+24	67910
+24	19627
+24	86401
+24	85884
+24	28465
+24	84890
+24	44776
+24	24944
+24	29803
+24	20598
+24	55392
+24	84101
+24	83478
+24	57256
+25	76189
+25	58656
+25	28958
+25	92768
+25	62376
+25	83778
+25	55859
+25	29524
+25	55855
+25	49480
+25	77815
+25	41753
+25	36734
+25	70432
+25	38049
+25	67464
+25	57363
+25	89198
+25	49773
+25	22907
+25	79776
+25	70088
+26	47714
+26	67537
+26	91286
+26	29275
+26	85952
+26	54892
+26	89086
+26	17824
+26	64059
+26	12120
+26	69133
+26	3613
+26	41247
+26	53344
+26	90409
+26	47982
+26	87531
+26	40752
+26	14976
+26	17732
+26	63912
+26	7867
+27	23401
+27	45925
+27	22714
+27	65347
+27	12745
+27	62095
+27	19096
+27	83366
+27	92190
+27	66504
+27	22732
+27	90839
+27	96043
+27	1918
+27	79374
+27	94204
+27	2091
+27	18347
+27	67034
+27	16727
+27	19469
+27	9085
+27	76001
+28	85334
+28	64427
+28	6791
+28	21616
+28	94058
+28	61867
+28	53059
+28	49691
+28	41260
+28	49305
+28	97291
+28	87405
+28	31231
+28	58205
+28	88416
+28	35043
+28	85276
+28	17489
+28	15994
+28	96627
+28	71546
+28	13267
+28	44740
+29	37867
+29	64188
+29	31804
+29	75829
+29	65285
+29	37361
+29	99522
+29	85569
+29	51225
+29	64948
+29	71808
+29	65974
+29	74221
+29	16062
+29	25155
+29	17263
+29	64536
+29	57295
+29	91378
+30	20690
+30	63553
+30	84927
+30	33714
+30	27187
+30	17309
+30	73403
+30	94481
+30	44080
+30	24202
+30	44854
+30	3499
+30	11957
+30	46631
+30	69703
+30	95279
+30	38767
+30	6477
+30	57062
+30	32038
+30	32287
+30	85443
+31	279
+31	41619
+31	14044
+31	24911
+31	14381
+31	56060
+31	77661
+31	92554
+31	9730
+31	14047
+31	35048
+31	16663
+31	35561
+31	68604
+31	88147
+31	85795
+31	70927
+31	81322
+31	44339
+31	5159
+31	76392
+31	42205
+32	23003
+32	91946
+32	90611
+32	50445
+32	29608
+32	72041
+32	82026
+32	77302
+32	46059
+32	56223
+32	43737
+32	19947
+32	77922
+32	47473
+32	99758
+33	94788
+33	83399
+33	76056
+33	91890
+33	48049
+33	70254
+33	41835
+33	24836
+33	64425
+33	53978
+33	55632
+33	29652
+33	60513
+33	38048
+33	33048
+33	52528
+33	51219
+33	30507
+33	3127
+33	47402
+33	15892
+33	27945
+34	65883
+34	16278
+34	51934
+34	72195
+34	56198
+34	38291
+34	5443
+34	8131
+34	3631
+34	59945
+34	19995
+34	52233
+34	89666
+34	92120
+34	3175
+34	69801
+34	37048
+34	38536
+34	67536
+35	93801
+35	69619
+35	9795
+35	79828
+35	50527
+35	92301
+35	52655
+35	94763
+35	10604
+35	65422
+35	18863
+35	78235
+35	38344
+35	26887
+35	36564
+35	59589
+35	67332
+35	70804
+35	16634
+35	46249
+35	2281
+35	70720
+36	81440
+36	15763
+36	25957
+36	71483
+36	53466
+36	90001
+36	24404
+36	21402
+36	82099
+36	38753
+36	281
+36	60828
+36	47513
+36	46036
+36	17740
+36	14790
+36	53238
+36	58969
+36	43378
+36	30750
+36	86518
+36	39159
+37	58088
+37	1726
+37	81185
+37	4962
+37	31849
+37	70689
+37	53740
+37	25927
+37	54489
+37	36957
+37	10473
+37	52028
+37	89034
+37	37357
+37	60980
+37	99214
+37	37684
+37	24305
+37	60977
+37	33184
+37	11520
+37	67652
+38	79580
+38	62660
+38	85283
+38	94715
+38	9916
+38	76066
+38	7254
+38	39512
+38	58640
+38	97762
+38	7131
+38	79327
+38	93906
+38	34536
+38	58691
+38	95291
+38	98926
+38	30716
+38	74793
+38	65885
+38	27048
+38	82806
+39	51120
+39	1561
+39	92370
+39	61401
+39	27345
+39	92587
+39	22639
+39	21727
+39	39735
+39	71910
+39	67910
+39	29879
+39	60379
+39	61772
+39	85884
+39	21967
+39	44776
+39	24944
+39	91177
+39	55392
+39	83478
+39	57256
+40	39938
+40	44129
+40	27507
+40	17838
+40	54406
+40	7024
+40	19044
+40	47235
+40	67971
+40	36967
+40	60666
+40	7358
+40	64492
+40	32828
+40	67226
+40	49779
+40	79093
+40	6148
+40	51305
+40	27380
+40	24384
+40	52552
+41	1935
+41	96120
+41	65254
+41	13873
+41	11656
+41	43303
+41	99122
+41	56303
+41	10030
+41	35230
+41	15302
+41	49430
+41	91166
+41	1434
+41	35147
+41	62725
+41	72075
+41	58047
+41	47738
+41	84687
+41	13828
+41	29364
+42	58656
+42	44963
+42	28958
+42	92768
+42	60365
+42	30413
+42	96839
+42	62376
+42	4762
+42	4835
+42	28452
+42	55855
+42	38288
+42	70432
+42	79803
+42	91529
+42	2702
+42	73278
+42	7972
+42	92937
+42	85689
+42	49773
+43	4266
+43	17215
+43	99591
+43	38092
+43	85944
+43	12745
+43	71253
+43	84346
+43	69313
+43	90805
+43	79374
+43	92191
+43	94204
+43	56514
+43	85347
+43	80526
+43	97601
+43	13257
+43	37708
+43	740
+43	33341
+43	58852
+44	85334
+44	80329
+44	40938
+44	59353
+44	44209
+44	50918
+44	64427
+44	6111
+44	5303
+44	49691
+44	49305
+44	88416
+44	60333
+44	42031
+44	85276
+44	55586
+44	90336
+44	52493
+44	95497
+44	34867
+44	22319
+44	81006
+45	1989
+45	11079
+45	71503
+45	15436
+45	32386
+45	46561
+45	44723
+45	20091
+45	67363
+45	5119
+45	72370
+45	52656
+45	97528
+45	69661
+45	25954
+45	71481
+45	27174
+45	58955
+45	11841
+45	54466
+45	97331
+45	5024
+46	56943
+46	49381
+46	83086
+46	68961
+46	17754
+46	54481
+46	80201
+46	22051
+46	86570
+46	22428
+46	28983
+46	69827
+46	21738
+46	44754
+46	6730
+46	99436
+46	59996
+46	48847
+46	3310
+46	17764
+46	75955
+46	73743
+47	9739
+47	56673
+47	16365
+47	19583
+47	86320
+47	73717
+47	22625
+47	1719
+47	12771
+47	45101
+47	59252
+47	79363
+47	27728
+47	53655
+47	56453
+47	79097
+47	92243
+47	14657
+47	22014
+47	42994
+47	7709
+47	54152
+48	81597
+48	41814
+48	64577
+48	15889
+48	49092
+48	82421
+48	5485
+48	86813
+48	7563
+48	71516
+48	51382
+48	8234
+48	89453
+48	82512
+48	66818
+48	2061
+48	1106
+48	79620
+48	25248
+48	14235
+48	43459
+49	92780
+49	36550
+49	5462
+49	75209
+49	62088
+49	24692
+49	36309
+49	51460
+49	6741
+49	23253
+49	21916
+49	98659
+49	45203
+49	74027
+49	7093
+49	73814
+49	49869
+49	152
+49	58223
+49	1357
+49	59293
+49	42008
+50	28840
+50	69496
+50	22131
+50	51375
+50	1521
+50	52046
+50	74225
+50	25299
+50	78559
+50	10564
+50	66344
+50	44601
+50	78973
+50	98520
+50	36858
+50	49495
+50	79398
+50	92882
+50	83784
+50	65280
+50	67199
+50	55906
+51	92179
+51	96339
+51	39480
+51	76565
+51	52495
+51	92623
+51	15799
+51	69782
+51	33494
+51	1889
+51	95911
+51	85737
+51	1116
+51	61383
+51	40379
+51	66341
+51	31665
+51	97223
+51	2863
+51	70832
+51	22122
+51	52199
+52	79480
+52	80682
+52	49542
+52	67172
+52	26928
+52	20802
+52	57117
+52	92865
+52	48908
+52	69140
+52	72035
+52	24336
+52	28347
+52	57993
+52	46247
+52	7639
+52	23492
+52	33693
+52	82311
+52	72288
+52	25911
+52	65220
+53	38468
+53	91027
+53	39881
+53	3089
+53	87826
+53	84831
+53	50231
+53	29497
+53	59295
+53	85347
+53	81653
+53	39211
+53	52190
+53	79649
+53	87452
+53	21477
+53	33095
+53	87073
+53	15746
+53	35817
+53	26019
+53	42194
+54	98547
+54	69750
+54	40730
+54	50918
+54	27876
+54	57868
+54	44178
+54	80623
+54	89785
+54	1892
+54	13066
+54	97894
+54	93813
+54	19543
+54	75156
+54	67346
+54	5710
+54	15697
+54	71162
+54	89657
+54	506
+54	15806
+55	70389
+55	43823
+55	89288
+55	6124
+55	81517
+55	62878
+55	26508
+55	62622
+55	85649
+55	71673
+55	59276
+55	46476
+55	53883
+55	88982
+55	62843
+55	81717
+55	37569
+55	87829
+56	36262
+56	14115
+56	85637
+56	16302
+56	85328
+56	54509
+56	12327
+56	38439
+56	18523
+56	8534
+56	618
+56	64761
+56	84660
+56	76749
+56	54124
+56	40941
+56	72726
+56	38873
+56	44446
+56	65940
+56	36239
+56	67013
+57	83771
+57	6291
+57	83431
+57	11158
+57	23914
+57	39366
+57	69190
+57	82339
+57	78829
+57	78579
+57	54840
+57	63357
+57	22353
+57	50931
+57	37589
+57	87730
+57	8770
+57	70887
+57	23555
+57	7620
+57	93505
+57	60319
+58	69826
+58	98569
+58	34192
+58	75651
+58	53882
+58	32967
+58	57242
+58	28341
+58	35865
+58	85257
+58	26700
+58	49790
+58	66263
+58	9648
+58	16610
+58	93772
+58	89866
+58	38526
+58	80274
+58	11040
+58	51339
+58	38037
+59	88474
+59	82650
+59	50070
+59	93298
+59	34780
+59	66559
+59	67742
+59	90085
+59	26664
+59	99158
+59	21144
+59	43724
+59	1895
+59	52841
+59	62692
+59	19279
+59	88961
+59	14373
+59	2344
+59	16358
+59	88434
+59	65653
+60	86570
+60	52002
+60	75955
+60	25037
+60	16760
+60	80201
+60	8966
+60	76740
+60	17754
+60	15387
+60	3310
+60	9512
+60	93949
+60	69827
+60	34782
+60	15506
+60	99918
+60	4721
+60	38339
+60	45852
+60	83158
+60	46849
+61	98896
+61	93437
+61	21834
+61	77492
+61	45746
+61	22957
+61	16096
+61	95256
+61	36121
+61	12214
+61	19161
+61	47234
+61	34931
+61	85922
+61	59066
+61	44038
+61	94749
+61	95129
+61	20189
+61	26239
+61	71680
+61	9155
+62	19646
+62	38384
+62	57872
+62	43459
+62	8874
+62	49092
+62	51382
+62	88758
+62	81234
+62	81755
+62	86813
+62	29849
+62	3147
+62	32350
+62	25319
+62	88110
+62	82512
+62	75107
+62	16654
+62	45485
+62	3578
+62	66723
+63	15615
+63	6049
+63	2042
+63	46888
+63	6319
+63	76532
+63	77459
+63	39411
+63	38451
+63	37808
+63	75698
+63	47282
+63	79631
+63	66325
+63	2848
+63	21077
+63	16064
+63	94605
+63	42108
+63	10730
+63	53023
+63	78417
+64	81262
+64	37134
+64	40638
+64	29493
+64	70989
+64	70943
+64	23830
+64	7028
+64	1173
+64	12676
+64	93334
+64	48019
+64	15295
+64	28478
+64	44025
+64	29822
+64	97086
+64	46961
+64	42138
+64	24411
+64	9102
+64	32482
+65	98482
+65	89990
+65	2078
+65	53641
+65	42008
+65	17534
+65	49869
+65	152
+65	32442
+65	24692
+65	45203
+65	66232
+65	27061
+65	25424
+65	7093
+65	17792
+65	93415
+65	29194
+65	75209
+65	7167
+65	64967
+65	43291
+66	69496
+66	88284
+66	84868
+66	7090
+66	53255
+66	20318
+66	11635
+66	44601
+66	53183
+66	66576
+66	12041
+66	87406
+66	15310
+66	84531
+66	54240
+66	46575
+66	65280
+66	81432
+66	97314
+66	92882
+66	98520
+66	45918
+67	78119
+67	39669
+67	35569
+67	25807
+67	47080
+67	45574
+67	70753
+67	60694
+67	28715
+67	9457
+67	15894
+67	72928
+67	70361
+67	60745
+67	4087
+67	83598
+67	81374
+67	42336
+67	95817
+67	47525
+67	52450
+67	43964
+68	6529
+68	36442
+68	390
+68	22072
+68	5606
+68	80874
+68	85853
+68	66707
+68	68644
+68	10808
+68	4699
+68	19652
+68	4951
+68	10562
+68	15820
+68	18513
+68	26638
+68	87777
+68	73309
+68	6524
+69	64611
+69	5331
+69	506
+69	27876
+69	20993
+69	20604
+69	19543
+69	60020
+69	53302
+69	44178
+69	9700
+69	94112
+69	68231
+69	97894
+69	98547
+69	63738
+69	80623
+69	14406
+69	51308
+69	46939
+69	30328
+69	30097
+70	9081
+70	90871
+70	9221
+70	4447
+70	88846
+70	58180
+70	15472
+70	71884
+70	15041
+70	4515
+70	92456
+70	38003
+70	25326
+70	81979
+70	72128
+70	70566
+70	88221
+70	41399
+70	53949
+70	72588
+70	71030
+70	93253
+71	38439
+71	70798
+71	12327
+71	40941
+71	65940
+71	57200
+71	78277
+71	10601
+71	18523
+71	38873
+71	90496
+71	83575
+71	95472
+71	44446
+71	74898
+71	80644
+71	92883
+71	93118
+71	66683
+71	96652
+71	84660
+71	13223
+72	37943
+72	39583
+72	51214
+72	61853
+72	34121
+72	61483
+72	68778
+72	53545
+72	9250
+72	85009
+72	39750
+72	8136
+72	5766
+72	33698
+72	71954
+72	9973
+72	58241
+72	10374
+72	57739
+72	63184
+72	80280
+72	15476
+73	6291
+73	23555
+73	67864
+73	39366
+73	78579
+73	81384
+73	87730
+73	50931
+73	93505
+73	83431
+73	74352
+73	52456
+73	13610
+73	5550
+73	70847
+73	44949
+73	43123
+73	42
+73	95843
+73	82751
+73	47783
+73	85317
+74	69090
+74	10583
+74	11223
+74	15145
+74	91035
+74	40725
+74	71952
+74	43944
+74	98280
+74	35675
+74	33713
+74	73082
+74	35217
+74	60343
+74	81409
+74	51757
+74	86786
+74	22258
+74	20645
+74	58138
+74	46624
+74	19812
+75	82202
+75	11040
+75	34192
+75	3503
+75	98569
+75	32967
+75	57255
+75	5242
+75	79204
+75	26700
+75	4538
+75	69826
+75	28341
+75	81537
+75	66263
+75	49790
+75	54866
+75	75651
+75	80274
+75	9741
+75	51811
+75	69227
+76	86570
+76	70724
+76	7056
+76	52002
+76	7441
+76	76740
+76	38164
+76	82336
+76	39031
+76	38906
+76	46080
+76	75955
+76	7545
+76	20979
+76	577
+76	34782
+76	40185
+76	60629
+76	82525
+76	45310
+76	27005
+76	54379
+77	71680
+77	22974
+77	8277
+77	77492
+77	37610
+77	21834
+77	26239
+77	65506
+77	90655
+77	16445
+77	94749
+77	71720
+77	28805
+77	45404
+77	85922
+77	21516
+77	55526
+77	82183
+77	70067
+77	39483
+77	93437
+77	9155
+78	6948
+78	58940
+78	42945
+78	39670
+78	43459
+78	47763
+78	84663
+78	34086
+78	60811
+78	3578
+78	86813
+78	55839
+78	79975
+78	69171
+78	17583
+78	93416
+78	300
+78	75118
+78	96877
+78	8601
+78	35894
+78	97832
+79	2042
+79	56360
+79	15615
+79	76532
+79	23507
+79	77459
+79	94935
+79	92981
+79	81510
+79	37808
+79	63080
+79	47282
+79	66325
+79	48323
+79	2130
+79	8451
+79	77939
+79	94605
+79	86268
+79	38969
+79	78417
+79	75977
+80	81262
+80	61906
+80	92656
+80	44813
+80	70989
+80	73769
+80	29822
+80	82971
+80	1173
+80	77346
+80	69885
+80	48019
+80	83705
+80	44025
+80	78478
+80	91386
+80	99943
+80	78197
+80	78802
+80	47384
+80	36108
+80	1406
+81	69496
+81	75144
+81	84868
+81	56205
+81	41805
+81	70829
+81	82053
+81	92848
+81	90775
+81	53579
+81	45721
+81	97290
+81	21324
+81	1211
+81	63904
+81	92882
+81	53255
+81	96660
+81	10223
+81	54240
+81	91558
+81	95498
+82	82415
+82	82190
+82	3683
+82	13513
+82	56108
+82	41288
+82	12780
+82	36975
+82	79456
+82	89933
+82	77851
+82	66051
+82	87116
+82	81010
+82	28578
+82	15853
+82	20825
+82	33683
+82	87420
+82	82907
+82	87803
+82	72502
+83	31624
+83	15860
+83	73770
+83	17442
+83	11712
+83	25462
+83	17292
+83	22636
+83	32438
+83	17727
+83	19817
+83	43460
+83	85095
+83	98385
+83	85798
+83	88328
+83	41977
+83	43310
+83	33966
+83	86843
+83	65484
+83	32612
+84	439
+84	18281
+84	22201
+84	42014
+84	79871
+84	89367
+84	70034
+84	87139
+84	25807
+84	47080
+84	25161
+84	70753
+84	73507
+84	90549
+84	76869
+84	7282
+84	19215
+84	13330
+84	75309
+84	91151
+84	27462
+84	72928
+85	9317
+85	48811
+85	33632
+85	49657
+85	69088
+85	65970
+85	35585
+85	11702
+85	54948
+85	67694
+85	80609
+85	92483
+85	1959
+85	4392
+85	63158
+85	49145
+85	92440
+85	77966
+85	87288
+85	45067
+85	9442
+85	68478
+86	15746
+86	25529
+86	8805
+86	10338
+86	80056
+86	42409
+86	20173
+86	69813
+86	82312
+86	44518
+86	33095
+86	26019
+86	63780
+86	65514
+86	91855
+86	37296
+86	21974
+86	81709
+86	81023
+86	59295
+86	12844
+86	92811
+87	51617
+87	50023
+87	78856
+87	66078
+87	66610
+87	57163
+87	90482
+87	8340
+87	12687
+87	71223
+87	29764
+87	10948
+87	85966
+87	72420
+87	27720
+87	49064
+87	22295
+87	51500
+87	89259
+87	8736
+87	452
+87	1974
+88	66256
+88	34121
+88	34271
+88	61483
+88	5971
+88	55225
+88	2292
+88	8136
+88	9973
+88	96191
+88	63184
+88	64138
+88	33698
+88	93539
+88	11664
+88	6103
+88	93072
+88	30065
+88	48102
+88	45615
+88	24558
+88	15476
+89	6291
+89	68158
+89	76961
+89	67864
+89	92425
+89	74352
+89	42
+89	27264
+89	81384
+89	71169
+89	16586
+89	85317
+89	47783
+89	52170
+89	15756
+89	32217
+89	24259
+89	17091
+89	47145
+89	10089
+89	44453
+89	55024
+90	855
+90	86786
+90	867
+90	25685
+90	81303
+90	28121
+90	14074
+90	18389
+90	71464
+90	46624
+90	33017
+90	84034
+90	47266
+90	34981
+90	36583
+90	92300
+90	27099
+90	96092
+90	27897
+90	90625
+90	32023
+90	17625
+91	7056
+91	52002
+91	34782
+91	82525
+91	39031
+91	75955
+91	46080
+91	76740
+91	87810
+91	38906
+91	54379
+91	17125
+91	70724
+91	76352
+91	58585
+91	89643
+91	21480
+91	13437
+91	45310
+91	96621
+91	38164
+91	86570
+92	3284
+92	88804
+92	19802
+92	20700
+92	80720
+92	55242
+92	3125
+92	31348
+92	52425
+92	89534
+92	22594
+92	1172
+92	82222
+92	14962
+92	72803
+92	76463
+92	46885
+92	90267
+92	6520
+92	3916
+92	88639
+92	8847
+93	747
+93	15923
+93	53489
+93	51334
+93	79148
+93	65214
+93	98252
+93	1618
+93	87363
+93	69887
+93	22224
+93	80104
+93	43288
+93	36467
+93	77566
+93	23529
+93	58900
+93	97048
+93	52647
+93	42198
+93	4782
+93	24782
+94	79242
+94	60014
+94	32148
+94	40750
+94	75261
+94	87249
+94	98630
+94	48377
+94	16644
+94	61986
+94	10418
+94	38014
+94	17067
+94	81306
+94	32950
+94	9775
+94	7544
+94	79071
+94	73967
+94	31841
+94	37056
+94	93894
+95	9155
+95	10947
+95	21516
+95	77492
+95	21834
+95	37610
+95	53400
+95	82183
+95	90655
+95	34289
+95	26685
+95	46630
+95	63937
+95	88346
+95	62981
+95	55526
+95	57430
+95	90033
+95	25708
+95	16445
+95	69107
+95	22136
+96	22822
+96	44896
+96	15317
+96	34086
+96	10882
+96	5132
+96	9806
+96	75574
+96	98541
+96	3578
+96	8601
+96	79975
+96	60811
+96	42021
+96	93416
+96	52816
+96	84663
+96	33839
+96	87143
+96	97255
+96	58940
+96	70505
+97	81262
+97	61906
+97	95637
+97	44813
+97	1864
+97	92656
+97	69885
+97	78670
+97	21188
+97	82971
+97	36108
+97	93850
+97	52027
+97	99498
+97	1410
+97	74113
+97	30138
+97	78197
+97	23218
+97	4081
+97	5681
+97	1406
+98	95875
+98	5300
+98	11175
+98	97727
+98	34023
+98	53115
+98	14709
+98	80419
+98	60629
+98	12682
+98	34797
+98	40979
+98	73673
+98	62214
+98	39599
+98	31011
+98	50486
+98	29660
+98	89616
+98	92379
+98	37836
+98	72738
+99	69496
+99	75144
+99	63904
+99	56205
+99	53255
+99	46575
+99	32063
+99	92848
+99	61576
+99	52254
+99	5631
+99	21324
+99	76847
+99	87807
+99	48537
+99	9921
+99	12371
+99	82053
+99	47450
+99	32657
+99	70795
+99	62196
+100	9317
+100	92483
+100	56493
+100	70032
+100	68508
+100	4392
+100	63158
+100	28651
+100	35635
+100	65970
+100	22661
+100	63252
+100	87288
+100	11702
+100	63122
+100	3441
+100	45798
+100	19936
+100	5819
+100	60181
+100	57969
+100	38721
+101	58349
+101	39089
+101	90224
+101	61299
+101	80578
+101	34403
+101	987
+101	31306
+101	9022
+101	12970
+101	82150
+101	15268
+101	89577
+101	12676
+101	93628
+101	59058
+101	81323
+101	3894
+101	70798
+101	61313
+101	39055
+101	941
+102	70926
+102	73008
+102	32477
+102	97894
+102	92709
+102	33226
+102	99095
+102	95816
+102	55057
+102	36812
+102	46939
+102	793
+102	32732
+102	14618
+102	98547
+102	52416
+102	9700
+102	14930
+102	58469
+102	30097
+102	25619
+102	57789
+103	83945
+103	11119
+103	36059
+103	96412
+103	41691
+103	28196
+103	4270
+103	82186
+103	15857
+103	47892
+103	81929
+103	30655
+103	12327
+103	89509
+103	72837
+103	92902
+103	89353
+103	5619
+103	4101
+103	77314
+103	35342
+103	82133
+104	35661
+104	34121
+104	93072
+104	77426
+104	41116
+104	55225
+104	41843
+104	12272
+104	64138
+104	12917
+104	63184
+104	83060
+104	48317
+104	65688
+104	27606
+104	6103
+104	24131
+104	19353
+104	48720
+104	10351
+104	24558
+104	98864
+105	50189
+105	38654
+105	32623
+105	67185
+105	15585
+105	16586
+105	64450
+105	15756
+105	55024
+105	5537
+105	47998
+105	68158
+105	39332
+105	76961
+105	47431
+105	3917
+105	55272
+105	66765
+105	78976
+105	4783
+105	9067
+105	33786
+106	855
+106	62756
+106	21555
+106	94783
+106	40725
+106	53257
+106	867
+106	5616
+106	61271
+106	92300
+106	42100
+106	27099
+106	49889
+106	44727
+106	62533
+106	17625
+106	46231
+106	35675
+106	47496
+106	20306
+106	97042
+106	95542
+107	7056
+107	52002
+107	18102
+107	70724
+107	59934
+107	58585
+107	577
+107	86293
+107	84905
+107	38906
+107	4354
+107	39644
+107	34746
+107	40151
+107	82525
+107	46080
+107	77430
+107	66524
+107	93168
+107	53202
+107	66939
+107	49805
+108	3284
+108	53019
+108	7046
+108	66746
+108	59856
+108	1172
+108	6520
+108	20700
+108	72803
+108	26899
+108	89534
+108	67000
+108	22594
+108	1235
+108	5257
+108	76463
+108	4189
+108	12058
+108	94330
+108	92893
+108	66734
+108	79047
+109	47391
+109	77734
+109	42198
+109	23529
+109	98099
+109	15923
+109	95834
+109	69887
+109	80104
+109	52787
+109	87363
+109	83441
+109	61074
+109	33539
+109	98252
+109	6141
+109	22224
+109	4782
+109	39340
+109	24618
+109	42080
+109	27288
+110	74455
+110	56457
+110	15317
+110	34887
+110	43761
+110	52816
+110	22841
+110	75574
+110	8601
+110	34802
+110	9806
+110	22822
+110	25979
+110	44896
+110	64663
+110	34233
+110	5132
+110	70457
+110	1287
+110	49523
+110	33839
+110	97255
+111	3644
+111	15235
+111	43085
+111	90417
+111	53136
+111	94477
+111	8286
+111	98706
+111	57925
+111	39420
+111	20709
+111	86721
+111	93859
+111	5248
+111	59228
+111	77479
+111	41229
+111	17245
+111	3840
+111	94089
+111	95105
+111	46980
+112	5681
+112	34606
+112	61906
+112	93850
+112	95637
+112	92656
+112	82516
+112	88739
+112	21188
+112	74113
+112	30138
+112	36108
+112	55221
+112	99498
+112	35206
+112	82971
+112	49366
+112	52027
+112	82931
+112	7203
+112	32722
+112	64569
+113	73673
+113	8972
+113	1013
+113	72738
+113	42540
+113	68170
+113	11488
+113	18770
+113	89616
+113	68792
+113	35433
+113	27425
+113	46187
+113	91195
+113	77332
+113	50486
+113	73715
+113	59807
+113	62214
+113	91752
+113	45085
+113	97727
+114	69496
+114	76847
+114	64553
+114	75144
+114	48537
+114	5631
+114	12371
+114	91914
+114	85684
+114	48001
+114	37767
+114	66980
+114	13602
+114	35938
+114	69898
+114	93728
+114	29553
+114	28249
+114	92848
+114	55734
+114	65845
+114	4130
+115	36838
+115	48502
+115	67273
+115	6709
+115	61086
+115	480
+115	64788
+115	87203
+115	60695
+115	11641
+115	50323
+115	40283
+115	40761
+115	6724
+115	59059
+115	45281
+115	52780
+115	70204
+115	88081
+115	27004
+115	3861
+115	74112
+116	44487
+116	67001
+116	91257
+116	53884
+116	44233
+116	70918
+116	13304
+116	74248
+116	39642
+116	3493
+116	60225
+116	67663
+116	74747
+116	64664
+116	79162
+116	44642
+116	36538
+116	68398
+116	24730
+116	58433
+116	9642
+116	60146
+117	9317
+117	60181
+117	4392
+117	36991
+117	76618
+117	28651
+117	90524
+117	22661
+117	60231
+117	40669
+117	38721
+117	63252
+117	99442
+117	24268
+117	57969
+117	19936
+117	53800
+117	44798
+117	83456
+117	87023
+117	79597
+117	91040
+118	61200
+118	50021
+118	50137
+118	80578
+118	42046
+118	48822
+118	5221
+118	80285
+118	49138
+118	39055
+118	9022
+118	93882
+118	45285
+118	82150
+118	59058
+118	3159
+118	8045
+118	58423
+118	53638
+118	15268
+118	3894
+118	34577
+119	70926
+119	71588
+119	93161
+119	20138
+119	81281
+119	52416
+119	48137
+119	57315
+119	55057
+119	20997
+119	73866
+119	11454
+119	53124
+119	69289
+119	70292
+119	42555
+119	836
+119	99095
+119	1529
+119	95816
+119	98546
+119	95773
+120	53140
+120	11119
+120	41231
+120	34358
+120	41691
+120	30744
+120	82186
+120	63431
+120	15857
+120	47892
+120	4270
+120	83945
+120	18360
+120	36059
+120	63224
+120	89353
+120	3368
+120	22700
+120	77314
+120	98414
+120	99710
+120	61834
+121	35661
+121	28162
+121	93072
+121	72864
+121	77426
+121	11099
+121	12917
+121	12272
+121	64138
+121	86276
+121	32446
+121	60896
+121	5324
+121	19519
+121	83141
+121	86015
+121	55399
+121	50033
+121	71648
+121	48733
+121	85955
+121	14080
+122	92631
+122	23037
+122	98745
+122	23879
+122	77985
+122	74479
+122	67478
+122	47829
+122	89771
+122	94646
+122	67309
+122	69901
+122	47589
+122	43522
+122	43168
+122	42364
+122	13390
+122	59854
+122	69323
+122	69996
+122	77729
+122	62963
+123	39749
+123	59934
+123	2965
+123	25829
+123	14923
+123	15663
+123	77430
+123	4354
+123	53202
+123	38906
+123	85778
+123	47010
+123	97113
+123	87388
+123	17395
+123	27277
+123	34222
+123	65181
+123	49805
+123	3810
+123	72683
+123	6015
+124	66734
+124	53019
+124	19802
+124	30493
+124	92893
+124	59856
+124	2372
+124	63835
+124	26899
+124	22594
+124	6520
+124	47776
+124	18674
+124	1172
+124	66746
+124	45469
+124	15241
+124	28376
+124	72803
+124	27243
+124	99127
+124	92968
+125	15216
+125	49133
+125	95896
+125	22118
+125	88857
+125	25708
+125	37315
+125	61272
+125	43628
+125	34289
+125	31552
+125	99091
+125	21149
+125	4640
+125	43520
+125	48978
+125	46923
+125	33536
+125	94047
+125	6647
+125	90487
+125	17536
+126	8268
+126	86
+126	60582
+126	54377
+126	33258
+126	2166
+126	83098
+126	16270
+126	49544
+126	10096
+126	24464
+126	58367
+126	4639
+126	98965
+126	70115
+126	86181
+126	65859
+126	87801
+126	55432
+126	10061
+126	28429
+126	56225
+127	74455
+127	79568
+127	40921
+127	62668
+127	49952
+127	52816
+127	88728
+127	22841
+127	8601
+127	34802
+127	34233
+127	25979
+127	43486
+127	22176
+127	34887
+127	63494
+127	43761
+127	70457
+127	77223
+127	11917
+127	52978
+127	27328
+128	9393
+128	8449
+128	92635
+128	87631
+128	78005
+128	94998
+128	95383
+128	62232
+128	95869
+128	77834
+128	22729
+128	10922
+128	14437
+128	37385
+128	86314
+128	60216
+128	75509
+128	43630
+128	91215
+128	39275
+128	18748
+128	66373
+129	73673
+129	42540
+129	68170
+129	56668
+129	53189
+129	28851
+129	77413
+129	45085
+129	3206
+129	72033
+129	119
+129	48831
+129	67671
+129	62214
+129	91195
+129	77530
+129	68967
+129	68792
+129	86117
+129	92154
+129	5329
+129	63857
+130	66980
+130	80210
+130	64553
+130	36154
+130	42664
+130	69898
+130	23385
+130	96873
+130	55734
+130	56971
+130	91914
+130	62196
+130	96177
+130	38555
+130	85808
+130	5631
+130	13602
+130	32657
+130	7812
+130	64207
+130	48001
+130	18898
+131	34408
+131	93664
+131	20578
+131	48556
+131	99082
+131	93911
+131	45308
+131	55928
+131	89897
+131	37859
+131	85379
+131	38795
+131	75161
+131	69368
+131	45711
+131	15207
+131	50217
+131	98667
+131	99251
+132	15677
+132	30953
+132	38349
+132	76522
+132	80565
+132	39336
+132	19550
+132	64457
+132	83669
+132	96979
+132	3607
+132	24515
+132	32760
+132	20506
+132	38889
+132	53754
+132	96893
+132	17992
+132	17652
+132	49357
+132	84160
+132	51451
+133	4931
+133	35798
+133	53044
+133	61942
+133	98936
+133	65622
+133	2403
+133	75663
+133	51434
+133	41601
+133	9236
+133	52148
+133	37721
+133	3154
+133	26224
+133	50489
+133	21011
+133	76074
+133	80696
+133	15758
+133	26945
+133	73129
+134	99794
+134	79597
+134	76618
+134	70748
+134	17002
+134	52906
+134	70408
+134	90524
+134	28651
+134	97724
+134	33189
+134	79846
+134	9317
+134	50044
+134	60181
+134	2102
+134	72049
+134	19936
+134	43733
+134	59828
+134	98262
+134	53800
+135	43209
+135	84013
+135	15529
+135	29454
+135	82719
+135	22223
+135	86931
+135	61735
+135	73517
+135	37575
+135	61494
+135	12397
+135	20172
+135	2986
+135	71234
+135	63446
+135	37477
+135	746
+135	5872
+135	48546
+135	71589
+135	31050
+136	53140
+136	47978
+136	83747
+136	63224
+136	83931
+136	50162
+136	81929
+136	47892
+136	99710
+136	40429
+136	93811
+136	51832
+136	90366
+136	58801
+136	48169
+136	30744
+136	51410
+136	95376
+136	2662
+136	82186
+136	8424
+136	81455
+137	14080
+137	28162
+137	93072
+137	72864
+137	77426
+137	11099
+137	69695
+137	12272
+137	64138
+137	86276
+137	63982
+137	60896
+137	72441
+137	62529
+137	83141
+137	86015
+137	12863
+137	50033
+137	9958
+137	48733
+137	89031
+137	57908
+138	53390
+138	30957
+138	33365
+138	26050
+138	56518
+138	79103
+138	37370
+138	16804
+138	64046
+138	82218
+138	4739
+138	25276
+138	35082
+138	94783
+138	49585
+138	16060
+138	63462
+138	68438
+138	39768
+138	90840
+138	81341
+138	82033
+139	24116
+139	14851
+139	41457
+139	57113
+139	39161
+139	6541
+139	84569
+139	97283
+139	68903
+139	82355
+139	22858
+139	31090
+139	71410
+139	41896
+139	90391
+139	69601
+139	64841
+139	19334
+139	33066
+139	37148
+139	68603
+139	29734
+140	6015
+140	87744
+140	89772
+140	72683
+140	2965
+140	81415
+140	77430
+140	50358
+140	73846
+140	85778
+140	65181
+140	60490
+140	89117
+140	48382
+140	6277
+140	15663
+140	7188
+140	41064
+140	1779
+140	49805
+140	89519
+140	60866
+141	74765
+141	97295
+141	1172
+141	75999
+141	35917
+141	59856
+141	74402
+141	63835
+141	95083
+141	80628
+141	4554
+141	30493
+141	90799
+141	68155
+141	66322
+141	99127
+141	45469
+141	76230
+141	96963
+141	77670
+141	62720
+141	66734
+142	80380
+142	51910
+142	78049
+142	3546
+142	95834
+142	23733
+142	57208
+142	39340
+142	34039
+142	34664
+142	54736
+142	37201
+142	4458
+142	73006
+142	36374
+142	27772
+142	27288
+142	28298
+142	46424
+142	67855
+142	61074
+142	2104
+143	79032
+143	55761
+143	18468
+143	72348
+143	88482
+143	34021
+143	24093
+143	8298
+143	62195
+143	87788
+143	91963
+143	57266
+143	73521
+143	27040
+143	53970
+143	46189
+143	73193
+143	12102
+143	4924
+143	57624
+143	54611
+143	1760
+144	46307
+144	93412
+144	47461
+144	67450
+144	71319
+144	28084
+144	40069
+144	83389
+144	54786
+144	39155
+144	58000
+144	13619
+144	11430
+144	14414
+144	28638
+144	16092
+144	52149
+144	50623
+144	19426
+144	32958
+144	87822
+144	42054
+145	48831
+145	39619
+145	68170
+145	12030
+145	72137
+145	42540
+145	91195
+145	93703
+145	74017
+145	62214
+145	119
+145	73673
+145	31389
+145	83005
+145	97066
+145	68792
+145	58264
+145	44349
+145	32265
+145	92154
+145	29600
+145	65172
+146	76357
+146	1582
+146	65100
+146	29733
+146	74745
+146	89311
+146	43188
+146	12372
+146	84295
+146	25337
+146	48712
+146	31830
+146	16991
+146	50564
+146	63266
+146	89554
+146	48827
+146	35622
+146	36
+146	45370
+146	89818
+146	44945
+147	96371
+147	6667
+147	62487
+147	89521
+147	17846
+147	95634
+147	57366
+147	90440
+147	48883
+147	39234
+147	7479
+147	29548
+147	97548
+147	65840
+147	45208
+147	21597
+147	92867
+147	20188
+147	58729
+147	28931
+147	26520
+147	69383
+148	30434
+148	88006
+148	66125
+148	63058
+148	87058
+148	36988
+148	93687
+148	68584
+148	22480
+148	47050
+148	21810
+148	72460
+148	62568
+148	98422
+148	78929
+148	14033
+148	78336
+148	27901
+148	22762
+148	87723
+148	54370
+148	24731
+149	43209
+149	96792
+149	37942
+149	29454
+149	90911
+149	37575
+149	86931
+149	52989
+149	73517
+149	39318
+149	94413
+149	12397
+149	82719
+149	88425
+149	2323
+149	71589
+149	16755
+149	33030
+149	20172
+149	12173
+149	61494
+149	30429
+150	53140
+150	50198
+150	32274
+150	34358
+150	83931
+150	46047
+150	81929
+150	99710
+150	36986
+150	47892
+150	61660
+150	51832
+150	62134
+150	13110
+150	32102
+150	35067
+150	85474
+150	11707
+150	82387
+150	85775
+150	19953
+150	85729
+151	14080
+151	69695
+151	48686
+151	66174
+151	72864
+151	28162
+151	89257
+151	44313
+151	48733
+151	66405
+151	79006
+151	60896
+151	72441
+151	92173
+151	15681
+151	41102
+151	35602
+151	89218
+151	25938
+151	48661
+151	7141
+151	44327
+152	84648
+152	47694
+152	262
+152	2400
+152	20553
+152	29556
+152	46434
+152	26214
+152	28747
+152	67954
+152	88088
+152	27514
+152	62762
+152	19642
+152	60845
+152	52104
+152	23309
+152	80725
+152	74389
+152	43672
+152	18421
+152	20595
+153	49497
+153	99200
+153	44782
+153	68390
+153	69624
+153	1597
+153	92929
+153	57731
+153	87506
+153	49087
+153	67711
+153	71914
+153	88955
+153	27837
+153	38620
+153	739
+153	71906
+153	20897
+153	28534
+153	56615
+153	11236
+153	10863
+154	44317
+154	66254
+154	45593
+154	61157
+154	25276
+154	99593
+154	3905
+154	21190
+154	4739
+154	35082
+154	30336
+154	23168
+154	66065
+154	26640
+154	6976
+154	34830
+154	45194
+154	1736
+154	80376
+154	54098
+154	62351
+154	12477
+155	62318
+155	47233
+155	61365
+155	49343
+155	92720
+155	31109
+155	68078
+155	3451
+155	52271
+155	25569
+155	90221
+155	15636
+155	73149
+155	80182
+155	5699
+155	27925
+155	75962
+155	99989
+155	82174
+155	82507
+155	40884
+155	28170
+156	6015
+156	52658
+156	69644
+156	54171
+156	22554
+156	12950
+156	4940
+156	37483
+156	84320
+156	85778
+156	89519
+156	43781
+156	48382
+156	99390
+156	70909
+156	67433
+156	99975
+156	34545
+156	23407
+156	86942
+156	53581
+156	60866
+157	41870
+157	12738
+157	3719
+157	34605
+157	86043
+157	90883
+157	56255
+157	54040
+157	19199
+157	65887
+157	48925
+157	50374
+157	54760
+157	27315
+157	8939
+157	83674
+157	16067
+157	99991
+157	74565
+157	67442
+157	32988
+157	80046
+158	64266
+158	56063
+158	99164
+158	42012
+158	12183
+158	36123
+158	99185
+158	34326
+158	86777
+158	45243
+158	13770
+158	70353
+158	17566
+158	53099
+158	2094
+158	88526
+158	77765
+158	15153
+158	5262
+158	72757
+158	67438
+158	53278
+159	47243
+159	76170
+159	77051
+159	64960
+159	85841
+159	36227
+159	81360
+159	64031
+159	64311
+159	36867
+159	90846
+159	4692
+159	76892
+159	33083
+159	61698
+159	88492
+159	60654
+159	14915
+159	70253
+159	98081
+159	25070
+159	29913
+160	48831
+160	83005
+160	3775
+160	5902
+160	21248
+160	84137
+160	78456
+160	99788
+160	88467
+160	12030
+160	34868
+160	37637
+160	39505
+160	93788
+160	17293
+160	44349
+160	80851
+160	57787
+160	16875
+160	29600
+160	91717
+160	76506
+161	7985
+161	86324
+161	4060
+161	4466
+161	84173
+161	55869
+161	8713
+161	3980
+161	64532
+161	10248
+161	26316
+161	64464
+161	67584
+161	46352
+161	42842
+161	25743
+161	69029
+161	21068
+161	49253
+161	19851
+161	52419
+161	50233
+162	35622
+162	3270
+162	60031
+162	37179
+162	31830
+162	89311
+162	46710
+162	12372
+162	1582
+162	25337
+162	48712
+162	63266
+162	16991
+162	55099
+162	23888
+162	89554
+162	48827
+162	48111
+162	60714
+162	45370
+162	91947
+162	82670
+163	28179
+163	32834
+163	32373
+163	76522
+163	93346
+163	72529
+163	91524
+163	23639
+163	94008
+163	96979
+163	50099
+163	48921
+163	3944
+163	67187
+163	85374
+163	44786
+163	94706
+163	62666
+163	42136
+163	49357
+163	7978
+163	28828
+164	6667
+164	60895
+164	56499
+164	89521
+164	42824
+164	95634
+164	18317
+164	97548
+164	48883
+164	32819
+164	37521
+164	29548
+164	15890
+164	99151
+164	69383
+164	21597
+164	92867
+164	3652
+164	67962
+164	22126
+164	9868
+164	19443
+165	5695
+165	88006
+165	14033
+165	98422
+165	54370
+165	93612
+165	58552
+165	68584
+165	22480
+165	57616
+165	73968
+165	32668
+165	53235
+165	23439
+165	16479
+165	35089
+165	48230
+165	91562
+165	96391
+165	3406
+165	57585
+165	94977
+166	84380
+166	26973
+166	29981
+166	57837
+166	90350
+166	70869
+166	40352
+166	3571
+166	99707
+166	39440
+166	28881
+166	12922
+166	23912
+166	15195
+166	87767
+166	40419
+166	50273
+166	58423
+166	78126
+166	38692
+166	26030
+166	44005
+167	43209
+167	59590
+167	60570
+167	29454
+167	52124
+167	88425
+167	69553
+167	86931
+167	891
+167	61240
+167	3989
+167	16755
+167	65696
+167	91705
+167	55852
+167	52989
+167	91463
+167	6774
+167	37942
+167	12765
+167	35750
+167	39318
+168	25714
+168	32712
+168	10069
+168	82486
+168	71287
+168	66055
+168	94864
+168	44105
+168	47488
+168	12467
+168	25130
+168	36542
+168	32146
+168	50864
+168	1949
+168	23179
+168	74931
+168	43535
+168	78107
+168	16979
+168	72733
+168	99636
+169	14080
+169	69695
+169	55894
+169	47205
+169	68969
+169	41102
+169	64134
+169	3391
+169	52461
+169	15681
+169	59574
+169	66174
+169	11877
+169	34993
+169	20874
+169	44313
+169	35602
+169	71765
+169	85977
+169	95747
+169	39513
+169	96776
+170	73371
+170	88535
+170	21849
+170	97960
+170	73411
+170	12808
+170	40338
+170	48327
+170	68346
+170	59774
+170	45774
+170	71313
+170	70419
+170	42885
+170	75422
+170	63564
+170	40564
+170	16403
+170	13314
+170	99212
+170	15801
+170	77356
+171	66254
+171	45593
+171	99392
+171	61157
+171	10969
+171	78111
+171	25276
+171	3905
+171	99593
+171	80404
+171	35082
+171	79724
+171	46907
+171	6976
+171	80376
+171	15637
+171	33159
+171	54098
+171	29420
+171	2464
+171	62351
+171	26142
+172	62318
+172	77455
+172	61365
+172	32042
+172	92720
+172	31109
+172	99989
+172	3451
+172	52271
+172	43037
+172	90221
+172	96650
+172	96142
+172	82507
+172	6318
+172	84133
+172	41829
+172	64028
+172	5699
+172	13147
+172	7810
+172	29893
+173	84816
+173	73390
+173	7663
+173	86900
+173	88903
+173	26401
+173	53789
+173	47829
+173	6736
+173	94036
+173	25456
+173	77440
+173	43941
+173	53153
+173	79995
+173	47416
+173	17433
+173	87975
+173	52742
+173	7477
+173	88070
+173	38187
+174	60866
+174	65003
+174	69644
+174	45267
+174	22554
+174	83096
+174	6098
+174	78605
+174	20664
+174	37483
+174	39132
+174	49168
+174	71619
+174	70038
+174	35736
+174	12950
+174	66932
+174	99975
+174	56757
+174	86942
+174	89519
+174	43781
+175	95667
+175	73034
+175	96632
+175	59682
+175	66008
+175	44016
+175	11469
+175	32771
+175	58080
+175	34300
+175	59315
+175	17774
+175	93565
+175	2805
+175	72682
+175	18610
+175	33634
+175	41427
+175	52069
+175	39692
+175	93395
+175	11668
+176	5974
+176	93218
+176	15628
+176	33323
+176	95834
+176	26922
+176	31736
+176	86201
+176	43905
+176	64288
+176	56491
+176	2230
+176	57208
+176	74243
+176	81864
+176	12252
+176	12971
+176	36374
+176	95822
+176	71032
+176	3126
+176	10055
+177	10247
+177	58761
+177	53399
+177	28511
+177	55121
+177	62199
+177	40071
+177	19209
+177	95927
+177	59697
+177	12019
+177	95371
+177	26352
+177	20020
+177	49134
+177	54028
+177	61860
+177	69858
+177	81007
+177	60697
+177	41194
+177	51677
+178	45636
+178	98480
+178	58500
+178	98609
+178	47601
+178	55381
+178	6708
+178	38399
+178	84407
+178	12423
+178	11306
+178	86679
+178	48156
+178	41807
+178	49970
+178	21488
+178	46831
+178	58071
+178	4162
+178	29001
+179	79390
+179	70102
+179	4882
+179	49962
+179	40179
+179	19836
+179	50128
+179	65224
+179	68542
+179	31450
+179	83210
+179	47197
+179	34569
+179	52968
+179	72479
+179	2675
+179	59016
+179	68823
+179	34141
+179	28235
+179	34594
+179	20640
+180	41870
+180	69834
+180	12738
+180	3719
+180	34605
+180	90883
+180	81366
+180	54040
+180	5511
+180	8939
+180	32542
+180	79617
+180	14107
+180	76592
+180	12716
+180	13150
+180	16067
+180	99991
+180	74565
+180	6095
+180	17626
+180	98948
+181	6835
+181	62087
+181	72685
+181	62128
+181	71750
+181	33765
+181	17413
+181	26834
+181	84123
+181	55438
+181	54224
+181	30605
+181	88933
+181	29948
+181	10770
+181	75470
+181	91620
+181	42459
+181	26353
+181	6989
+181	80606
+181	88196
+182	67438
+182	70353
+182	53099
+182	42012
+182	77109
+182	45821
+182	99185
+182	34326
+182	86777
+182	53791
+182	60461
+182	34354
+182	2094
+182	65801
+182	46674
+182	69257
+182	17566
+182	53311
+182	51494
+182	795
+182	86176
+182	55970
+183	48831
+183	42920
+183	29143
+183	3775
+183	30672
+183	21248
+183	99788
+183	73911
+183	88467
+183	72980
+183	6193
+183	76506
+183	75736
+183	93788
+183	44349
+183	66365
+183	31072
+183	46574
+183	16875
+183	91717
+183	89106
+183	56533
+184	21692
+184	71779
+184	75182
+184	15273
+184	68738
+184	90628
+184	20299
+184	49203
+184	97692
+184	88607
+184	90719
+184	88598
+184	39423
+184	65991
+184	8051
+184	33410
+184	61662
+184	76079
+184	32314
+184	51432
+184	79632
+184	55917
+185	14752
+185	98380
+185	35886
+185	39611
+185	80000
+185	84240
+185	38027
+185	88108
+185	50194
+185	23450
+185	30806
+185	39675
+185	53388
+185	15562
+185	98571
+185	21395
+185	81343
+185	72373
+185	69712
+185	44600
+185	69864
+185	46351
+186	55794
+186	53798
+186	40771
+186	99050
+186	52771
+186	62565
+186	5529
+186	85997
+186	96985
+186	32829
+186	76882
+186	76981
+186	65462
+186	13942
+186	39792
+186	62599
+186	4514
+186	50213
+186	59982
+186	5291
+186	36137
+186	796
+187	13103
+187	32834
+187	60966
+187	56412
+187	85374
+187	72529
+187	16659
+187	23639
+187	23072
+187	96979
+187	50099
+187	51887
+187	39268
+187	64384
+187	93346
+187	55653
+187	96784
+187	12095
+187	42136
+187	94008
+187	7978
+187	79702
+188	50717
+188	17208
+188	15890
+188	88971
+188	43189
+188	51539
+188	46254
+188	2493
+188	48883
+188	1165
+188	57931
+188	22126
+188	40684
+188	98924
+188	91411
+188	21597
+188	92867
+188	69383
+188	18317
+188	3652
+188	71920
+188	76784
+189	5695
+189	66125
+189	19146
+189	91562
+189	72942
+189	11356
+189	46604
+189	68584
+189	27545
+189	11027
+189	96391
+189	26253
+189	53843
+189	12472
+189	22480
+189	57616
+189	53126
+189	56094
+189	15973
+189	85827
+189	65495
+189	85003
+190	32342
+190	49099
+190	66593
+190	56334
+190	47456
+190	18580
+190	93680
+190	64968
+190	18718
+190	13514
+190	3282
+190	27460
+190	5530
+190	10493
+190	35273
+190	5562
+190	15023
+190	58072
+190	12978
+190	116
+190	90721
+190	5387
+191	84380
+191	96996
+191	19020
+191	40490
+191	35214
+191	22433
+191	3571
+191	89298
+191	37218
+191	92317
+191	65283
+191	25980
+191	14310
+191	42410
+191	24553
+191	70703
+191	86323
+191	57343
+191	39440
+191	99707
+191	44005
+191	23912
+192	7171
+192	79689
+192	48686
+192	27251
+192	31123
+192	29426
+192	89975
+192	52461
+192	89949
+192	95747
+192	59574
+192	36307
+192	40743
+192	79344
+192	45695
+192	17092
+192	39771
+192	49502
+192	25464
+192	68969
+192	85181
+192	84364
+193	76922
+193	75249
+193	96969
+193	84644
+193	17336
+193	85024
+193	43672
+193	67521
+193	68408
+193	10281
+193	83693
+193	14305
+193	74361
+193	36045
+193	707
+193	46658
+193	27514
+193	56193
+193	40780
+193	28747
+193	24680
+193	84659
+194	33690
+194	88535
+194	12743
+194	97960
+194	52965
+194	58877
+194	40338
+194	16403
+194	8861
+194	59774
+194	45774
+194	68346
+194	85018
+194	42885
+194	15505
+194	63564
+194	65733
+194	82715
+194	97535
+194	80405
+194	93051
+194	15801
+195	83449
+195	22408
+195	60363
+195	45025
+195	62815
+195	80376
+195	95267
+195	61630
+195	22755
+195	80404
+195	2464
+195	70033
+195	69165
+195	49676
+195	24755
+195	46907
+195	12666
+195	15637
+195	79080
+195	98697
+195	65092
+195	64307
+196	84816
+196	73390
+196	8623
+196	39297
+196	88903
+196	26401
+196	71806
+196	97414
+196	6736
+196	13042
+196	25456
+196	38187
+196	99499
+196	5723
+196	43888
+196	47038
+196	87975
+196	24703
+196	93848
+196	47067
+196	95299
+196	92384
+197	43781
+197	33125
+197	69644
+197	12950
+197	35736
+197	83096
+197	60969
+197	19190
+197	90635
+197	37483
+197	30573
+197	34958
+197	79755
+197	5820
+197	76896
+197	6573
+197	90842
+197	78605
+197	50408
+197	12049
+197	10596
+197	6015
+198	94024
+198	5061
+198	86608
+198	28606
+198	25752
+198	73764
+198	99064
+198	9476
+198	91932
+198	32755
+198	76141
+198	32447
+198	62546
+198	7363
+198	48970
+198	33225
+198	84561
+198	25143
+198	19526
+198	8726
+198	33846
+198	52146
+199	9660
+199	97018
+199	78960
+199	7554
+199	35196
+199	15173
+199	73303
+199	61972
+199	92139
+199	27353
+199	5935
+199	82297
+199	21914
+199	67430
+199	73226
+199	8567
+199	50657
+199	25508
+199	90988
+199	13395
+199	27647
+199	33784
+200	6115
+200	46140
+200	94731
+200	40610
+200	62631
+200	92595
+200	49069
+200	21213
+200	77330
+200	36502
+200	56788
+200	53824
+200	48513
+200	7140
+200	445
+200	17302
+200	58408
+200	60480
+200	92292
+200	98689
+200	4488
+200	83507
+201	20640
+201	23718
+201	59016
+201	68542
+201	29522
+201	49962
+201	2675
+201	34141
+201	65174
+201	36651
+201	19351
+201	70102
+201	81883
+201	87821
+201	49130
+201	53735
+201	76340
+201	78807
+201	38921
+201	18335
+201	8967
+201	60826
+202	51570
+202	69834
+202	29650
+202	12738
+202	27495
+202	3719
+202	94723
+202	52595
+202	643
+202	8939
+202	80821
+202	79617
+202	5511
+202	76592
+202	93959
+202	12716
+202	31235
+202	99991
+202	22982
+202	88945
+202	51538
+202	87726
+203	71520
+203	65801
+203	77817
+203	51494
+203	4063
+203	45821
+203	67142
+203	99704
+203	52793
+203	88653
+203	6745
+203	795
+203	56500
+203	15144
+203	26969
+203	32610
+203	13416
+203	21159
+203	48639
+203	97362
+203	81476
+203	12206
+204	20424
+204	20549
+204	8949
+204	62944
+204	15649
+204	10707
+204	97678
+204	37600
+204	34556
+204	54079
+204	88871
+204	32244
+204	56076
+204	76810
+204	72587
+204	29742
+204	685
+204	22174
+204	57174
+204	33838
+204	34985
+204	42180
+205	56533
+205	29143
+205	3775
+205	30672
+205	99684
+205	99788
+205	24028
+205	73911
+205	13638
+205	49669
+205	55733
+205	50344
+205	32608
+205	69913
+205	93788
+205	66365
+205	81402
+205	46574
+205	45432
+205	91717
+205	35253
+205	57440
+206	96913
+206	47178
+206	28996
+206	38416
+206	83744
+206	10537
+206	19791
+206	3454
+206	26316
+206	62984
+206	22941
+206	43570
+206	59792
+206	56743
+206	85837
+206	67053
+206	89412
+206	63828
+206	93110
+206	83083
+206	10248
+206	66199
+207	87191
+207	92676
+207	40516
+207	95808
+207	7753
+207	40453
+207	37917
+207	99850
+207	32922
+207	4834
+207	87575
+207	37638
+207	32719
+207	74260
+207	13902
+207	11961
+207	21024
+207	43398
+207	29930
+207	3975
+207	40996
+207	79497
+208	55794
+208	53798
+208	40771
+208	62565
+208	98708
+208	99050
+208	84808
+208	32829
+208	23905
+208	62599
+208	88012
+208	4514
+208	92698
+208	96985
+208	19672
+208	99479
+208	74529
+208	76981
+208	76882
+208	28922
+208	40633
+208	42530
+209	47269
+209	13699
+209	60644
+209	77194
+209	20267
+209	56811
+209	16678
+209	73704
+209	29440
+209	53152
+209	97522
+209	3297
+209	84056
+209	69529
+209	3360
+209	37560
+209	34547
+209	55219
+209	38392
+209	74570
+209	18120
+209	82332
+210	50717
+210	31117
+210	48883
+210	146
+210	22126
+210	2493
+210	71521
+210	83573
+210	39326
+210	1165
+210	57931
+210	71920
+210	71979
+210	7710
+210	40684
+210	98924
+210	86899
+210	59285
+210	39546
+210	3652
+210	17582
+210	52039
+211	98161
+211	37038
+211	22344
+211	63783
+211	31048
+211	81444
+211	97302
+211	29698
+211	31762
+211	10440
+211	94871
+211	34980
+211	94216
+211	52794
+211	48881
+211	3000
+211	88661
+211	87641
+211	77856
+211	7955
+211	61802
+211	37242
+212	85003
+212	5434
+212	64688
+212	91562
+212	53843
+212	11356
+212	46604
+212	8096
+212	65888
+212	78666
+212	42726
+212	51002
+212	36038
+212	12472
+212	39517
+212	31710
+212	56094
+212	47824
+212	97239
+212	15973
+212	89287
+212	5695
+213	77268
+213	43950
+213	65387
+213	45849
+213	68971
+213	83876
+213	19309
+213	46375
+213	51349
+213	99813
+213	13141
+213	70602
+213	66410
+213	74032
+213	87197
+213	95664
+213	64475
+213	99042
+213	50938
+213	53955
+213	53803
+213	18924
+214	32342
+214	64968
+214	66593
+214	4915
+214	18580
+214	93918
+214	34497
+214	33328
+214	27906
+214	86826
+214	3282
+214	27460
+214	48718
+214	5562
+214	51110
+214	90721
+214	12978
+214	10906
+214	10855
+214	86677
+214	16126
+214	8071
+215	63214
+215	72141
+215	96996
+215	42410
+215	91970
+215	19020
+215	32414
+215	93792
+215	12940
+215	12398
+215	70569
+215	95106
+215	44005
+215	86323
+215	31693
+215	91175
+215	2901
+215	14296
+215	18314
+215	74307
+215	6498
+215	98382
+216	73100
+216	86817
+216	48167
+216	29429
+216	89543
+216	57952
+216	68463
+216	38492
+216	94995
+216	36582
+216	37351
+216	22385
+216	77490
+216	3963
+216	72094
+216	66014
+216	19175
+216	83805
+216	97584
+216	57189
+216	18562
+216	489
+217	7171
+217	79689
+217	67713
+217	27251
+217	66165
+217	36201
+217	89975
+217	49502
+217	4572
+217	79344
+217	59574
+217	71616
+217	65532
+217	59388
+217	23204
+217	45408
+217	91180
+217	93701
+217	95392
+217	27194
+217	96946
+217	84364
+218	15637
+218	22408
+218	7031
+218	14841
+218	6684
+218	10969
+218	95267
+218	35873
+218	53936
+218	80404
+218	64003
+218	34056
+218	23349
+218	49676
+218	31161
+218	46907
+218	82949
+218	80379
+218	79080
+218	14628
+218	30977
+218	15632
+219	29893
+219	22801
+219	57468
+219	46006
+219	77198
+219	69681
+219	76884
+219	67942
+219	16938
+219	52446
+219	6378
+219	11735
+219	7284
+219	79953
+219	68014
+219	67426
+219	67358
+219	57682
+219	16277
+219	46897
+219	80487
+219	91339
+220	531
+220	73390
+220	43307
+220	5723
+220	51650
+220	35636
+220	95299
+220	8623
+220	28230
+220	97414
+220	25456
+220	47067
+220	99499
+220	47038
+220	11791
+220	39297
+220	37431
+220	33618
+220	3300
+220	72937
+220	69659
+220	92384
+221	31850
+221	26340
+221	88506
+221	32466
+221	76896
+221	90842
+221	66554
+221	10596
+221	90635
+221	12049
+221	61251
+221	12036
+221	62375
+221	56505
+221	60969
+221	68671
+221	52379
+221	78793
+221	61247
+221	69952
+221	6573
+221	73607
+222	17774
+222	84420
+222	56577
+222	31657
+222	31884
+222	44016
+222	77989
+222	12458
+222	58080
+222	59402
+222	41084
+222	79721
+222	81131
+222	8703
+222	94752
+222	95667
+222	53341
+222	36769
+222	19849
+222	64478
+222	3377
+222	93402
+223	31928
+223	70177
+223	14496
+223	43980
+223	39384
+223	31126
+223	53398
+223	31825
+223	43732
+223	49600
+223	2405
+223	65731
+223	41062
+223	10890
+223	92695
+223	82012
+223	96992
+223	13552
+223	69504
+223	75417
+223	33086
+223	7687
+224	62978
+224	65985
+224	59912
+224	74237
+224	50080
+224	78926
+224	2273
+224	13444
+224	35501
+224	27437
+224	1259
+224	16382
+224	64783
+224	18941
+224	49136
+224	73174
+224	87653
+224	73643
+224	37790
+224	48788
+224	81990
+224	39680
+225	76459
+225	20237
+225	40265
+225	73737
+225	57995
+225	20647
+225	8239
+225	52500
+225	16313
+225	71260
+225	85306
+225	17800
+225	82871
+225	78227
+225	28182
+225	58445
+225	65434
+225	99987
+225	71732
+225	48690
+225	22231
+225	14432
+226	42749
+226	41175
+226	51328
+226	11562
+226	31758
+226	17383
+226	54444
+226	62193
+226	89810
+226	73679
+226	57839
+226	62807
+226	53055
+226	47911
+226	10496
+226	7223
+226	1224
+226	83361
+226	26446
+226	41648
+226	72591
+226	97395
+227	20640
+227	23718
+227	67307
+227	17303
+227	55650
+227	49962
+227	2675
+227	19351
+227	18335
+227	36651
+227	38921
+227	96960
+227	81883
+227	68510
+227	10265
+227	27404
+227	34450
+227	78807
+227	6127
+227	76340
+227	81
+227	13285
+228	57440
+228	42920
+228	29143
+228	35719
+228	67143
+228	47366
+228	43222
+228	73911
+228	13638
+228	67585
+228	32608
+228	61854
+228	75545
+228	13438
+228	78756
+228	49269
+228	38434
+228	25410
+228	76544
+228	35253
+228	81402
+228	88002
+229	58282
+229	37630
+229	92391
+229	72919
+229	73794
+229	50869
+229	48431
+229	19670
+229	76874
+229	32830
+229	47334
+229	11241
+229	88192
+229	52936
+229	3942
+229	53103
+229	15631
+229	77764
+229	84043
+229	42249
+229	29008
+229	30771
+230	67839
+230	24199
+230	69817
+230	8289
+230	15882
+230	4391
+230	96122
+230	95491
+230	42603
+230	94106
+230	72379
+230	64796
+230	28854
+230	66543
+230	56580
+230	52963
+230	51629
+230	90888
+230	98535
+230	61238
+230	87036
+230	57771
+231	71173
+231	94011
+231	99719
+231	42321
+231	23176
+231	19537
+231	1137
+231	83453
+231	58563
+231	30739
+231	49988
+231	44978
+231	25437
+231	69340
+231	34184
+231	40531
+231	54322
+231	67274
+231	42807
+231	78546
+231	86528
+231	63813
+232	85003
+232	53843
+232	8096
+232	5434
+232	42726
+232	64688
+232	17223
+232	78666
+232	10580
+232	10435
+232	16627
+232	51002
+232	39265
+232	34150
+232	46094
+232	49470
+232	76645
+232	39646
+232	95626
+232	9546
+232	56270
+232	18873
+233	95438
+233	43950
+233	35322
+233	99575
+233	68971
+233	83876
+233	66410
+233	43076
+233	76411
+233	47850
+233	50938
+233	86017
+233	65387
+233	51349
+233	74032
+233	95664
+233	90303
+233	15222
+233	93046
+233	55097
+233	20285
+233	50333
+234	32342
+234	64968
+234	56334
+234	86826
+234	18580
+234	16126
+234	86677
+234	48718
+234	27906
+234	10906
+234	77250
+234	99207
+234	15788
+234	35793
+234	34497
+234	90721
+234	5885
+234	10165
+234	45890
+234	6372
+234	10577
+234	77395
+235	63214
+235	31693
+235	80363
+235	75527
+235	59110
+235	40929
+235	46166
+235	90670
+235	12940
+235	84197
+235	81270
+235	76590
+235	98382
+235	82189
+235	61508
+235	44411
+235	35246
+235	10514
+235	18314
+235	61411
+235	6498
+235	49442
+236	83613
+236	39219
+236	31156
+236	22289
+236	75066
+236	23360
+236	26709
+236	63692
+236	2017
+236	21234
+236	75272
+236	41130
+236	59805
+236	71492
+236	67329
+236	92339
+236	26281
+236	60456
+236	27804
+236	81063
+236	46228
+236	94051
+237	95570
+237	23285
+237	56780
+237	36777
+237	52938
+237	35056
+237	27017
+237	90097
+237	91477
+237	11032
+237	17799
+237	16899
+237	96771
+237	77154
+237	99834
+237	16918
+237	234
+237	53430
+237	27206
+237	50458
+237	17103
+237	42685
+238	43736
+238	28361
+238	53572
+238	85296
+238	51936
+238	14008
+238	7720
+238	44443
+238	21609
+238	88114
+238	67232
+238	86766
+238	72794
+238	28894
+238	95563
+238	93627
+238	12470
+238	7553
+238	5791
+238	82723
+238	52133
+238	94232
+239	22385
+239	86817
+239	58404
+239	53299
+239	69960
+239	77465
+239	68463
+239	68471
+239	36582
+239	83805
+239	68611
+239	62514
+239	70218
+239	2668
+239	85271
+239	52902
+239	97602
+239	57189
+239	30100
+239	80877
+239	14403
+239	2096
+240	59164
+240	74629
+240	67713
+240	83968
+240	23204
+240	51921
+240	89975
+240	77552
+240	4572
+240	49502
+240	3526
+240	70770
+240	43380
+240	59388
+240	60022
+240	25067
+240	37963
+240	91373
+240	55047
+240	45408
+240	46363
+240	45405
+241	94391
+241	63160
+241	71342
+241	9094
+241	85893
+241	1298
+241	71107
+241	74361
+241	31892
+241	93318
+241	83693
+241	34572
+241	54317
+241	50470
+241	62861
+241	48922
+241	26414
+241	153
+241	18303
+241	58374
+241	93042
+241	39053
+242	53935
+242	70959
+242	15996
+242	41343
+242	24769
+242	89759
+242	87338
+242	1608
+242	40825
+242	18032
+242	17405
+242	60468
+242	74741
+242	54299
+242	26383
+242	93081
+242	21261
+242	48120
+243	62296
+243	60340
+243	84060
+243	24862
+243	2688
+243	70203
+243	15966
+243	33672
+243	14903
+243	10128
+243	49949
+243	78729
+243	27968
+243	24949
+243	47025
+243	58392
+243	21302
+243	85220
+244	4945
+244	48100
+244	54832
+244	44333
+244	69316
+244	19063
+244	34495
+244	54250
+244	81582
+244	78731
+244	15723
+244	75654
+244	1739
+244	8129
+244	18257
+244	91091
+244	5432
+244	54286
+245	81922
+245	43536
+245	1721
+245	50609
+245	91753
+245	3790
+245	25916
+245	8319
+245	65510
+245	42117
+245	23712
+245	80365
+245	88749
+245	43393
+245	74955
+245	37679
+245	43998
+245	75034
+246	36095
+246	51730
+246	63276
+246	95856
+246	44228
+246	48884
+246	21423
+246	53366
+246	30335
+246	10757
+246	39883
+246	76215
+246	10018
+246	16920
+246	25144
+246	47441
+246	8619
+246	58592
+247	97777
+247	23151
+247	10951
+247	75268
+247	90918
+247	2315
+247	12901
+247	11183
+247	89767
+247	65393
+247	57735
+247	71237
+247	40727
+247	52430
+247	49968
+247	47660
+247	7005
+247	50912
+248	89545
+248	87015
+248	27625
+248	64525
+248	85493
+248	50928
+248	89192
+248	28976
+248	41046
+248	95229
+248	91514
+248	46260
+248	13746
+248	57072
+248	77882
+248	48890
+248	10451
+248	29094
+249	42839
+249	21831
+249	54269
+249	7169
+249	2950
+249	55801
+249	37507
+249	79951
+249	16994
+249	96912
+249	62147
+249	23793
+249	35084
+249	93036
+249	75601
+249	95282
+249	31253
+249	85265
+250	52654
+250	81179
+250	26950
+250	65225
+250	53349
+250	89903
+250	76883
+250	33681
+250	32241
+250	57488
+250	8232
+250	59238
+250	68759
+250	436
+250	30411
+250	42059
+250	24476
+250	55437
+251	89376
+251	29059
+251	8403
+251	67204
+251	36817
+251	6023
+251	24254
+251	91065
+251	84389
+251	58688
+251	35393
+251	39183
+251	58483
+251	3648
+251	84789
+251	18995
+251	54099
+251	41995
+252	16323
+252	8153
+252	96118
+252	35861
+252	57532
+252	84182
+252	12441
+252	24936
+252	57215
+252	33270
+252	81571
+252	1275
+252	42701
+252	31691
+252	98080
+252	2652
+252	3801
+252	99713
+253	65159
+253	90564
+253	48379
+253	56906
+253	29594
+253	99201
+253	36970
+253	10856
+253	28901
+253	54794
+253	89416
+253	99328
+253	25850
+253	30345
+253	5397
+253	30282
+253	13711
+253	83809
+254	34056
+254	53817
+254	28816
+254	82949
+254	78898
+254	79080
+254	35873
+254	14841
+254	84542
+254	80404
+254	16961
+254	24755
+254	41616
+254	6370
+254	55916
+254	69852
+254	65
+254	15142
+254	7031
+254	27629
+254	93732
+254	87458
+255	531
+255	72736
+255	10129
+255	43307
+255	61846
+255	33618
+255	8623
+255	51869
+255	28230
+255	97414
+255	88070
+255	72937
+255	99499
+255	39297
+255	35636
+255	33197
+255	83199
+255	69659
+255	71601
+255	54160
+255	90526
+255	48499
+256	83061
+256	6645
+256	47593
+256	49642
+256	74977
+256	92800
+256	44632
+256	59235
+256	20960
+256	22812
+256	11058
+256	23356
+256	70512
+256	9423
+256	61814
+256	26034
+256	77469
+256	97920
+256	66585
+256	90575
+256	9978
+256	84079
+257	31850
+257	26340
+257	61247
+257	74676
+257	12551
+257	90842
+257	68671
+257	32466
+257	12418
+257	93386
+257	61251
+257	2858
+257	56505
+257	91718
+257	7679
+257	72471
+257	78793
+257	86509
+257	60969
+257	62722
+257	81097
+257	12835
+258	94024
+258	88510
+258	47670
+258	6964
+258	7517
+258	56496
+258	23633
+258	81648
+258	19567
+258	5061
+258	40793
+258	31099
+258	99271
+258	67920
+258	40749
+258	48990
+258	24215
+258	96679
+258	36178
+258	22562
+258	51016
+258	33264
+259	17774
+259	84420
+259	98173
+259	33542
+259	53341
+259	94752
+259	77989
+259	12458
+259	58080
+259	59402
+259	3377
+259	6434
+259	7520
+259	8703
+259	68499
+259	63012
+259	63522
+259	1632
+259	43560
+259	49445
+259	95667
+259	93402
+260	24621
+260	70177
+260	33086
+260	43980
+260	42991
+260	31825
+260	23692
+260	19743
+260	27157
+260	49600
+260	55994
+260	2080
+260	41894
+260	10890
+260	92695
+260	76247
+260	80178
+260	28003
+260	69504
+260	6957
+260	10444
+260	42369
+261	59164
+261	47227
+261	67713
+261	83968
+261	87830
+261	51921
+261	37963
+261	77552
+261	43380
+261	49502
+261	71595
+261	45405
+261	4572
+261	59388
+261	48681
+261	5385
+261	68490
+261	91373
+261	9705
+261	61872
+261	78222
+261	33751
+262	7892
+262	54632
+262	86801
+262	43850
+262	59135
+262	6459
+262	68230
+262	68233
+262	16110
+262	12695
+262	75239
+262	83956
+262	35810
+262	11986
+262	70338
+262	98623
+262	38731
+262	68585
+262	87563
+262	24277
+262	80966
+262	20597
+263	88002
+263	83615
+263	24741
+263	36036
+263	43222
+263	42920
+263	98192
+263	2430
+263	80307
+263	78756
+263	87231
+263	93900
+263	52474
+263	67585
+263	96535
+263	38434
+263	38178
+263	26730
+263	31072
+263	32071
+263	78280
+263	14001
+264	50787
+264	78308
+264	9363
+264	28217
+264	21741
+264	40627
+264	22941
+264	21495
+264	26316
+264	46904
+264	97279
+264	53503
+264	70776
+264	97610
+264	93217
+264	16030
+264	82483
+264	81177
+264	87112
+264	35042
+264	74788
+264	10416
+265	74924
+265	61342
+265	19991
+265	82124
+265	77110
+265	96824
+265	45896
+265	84885
+265	9278
+265	37917
+265	8730
+265	58464
+265	61219
+265	39021
+265	48036
+265	89133
+265	33746
+265	36579
+265	91608
+265	96488
+265	16451
+265	62567
+266	15829
+266	32212
+266	92391
+266	72919
+266	51357
+266	50869
+266	33834
+266	27957
+266	92804
+266	22409
+266	3942
+266	4823
+266	26572
+266	49163
+266	29008
+266	92458
+266	20827
+266	61116
+266	99166
+266	42249
+266	25693
+266	22351
+267	75277
+267	39450
+267	72134
+267	46986
+267	74808
+267	91949
+267	54287
+267	91871
+267	98228
+267	83122
+267	22820
+267	72487
+267	26103
+267	84893
+267	41790
+267	25342
+267	25715
+267	95888
+267	74911
+267	34180
+267	56969
+267	77276
+268	3090
+268	83152
+268	2163
+268	90792
+268	52878
+268	94465
+268	48934
+268	61579
+268	73648
+268	72296
+268	31031
+268	14379
+268	48304
+268	47297
+268	24240
+268	63024
+268	59890
+268	93679
+268	21663
+268	25644
+268	96984
+268	50065
+269	67839
+269	25274
+269	99685
+269	15882
+269	96122
+269	91106
+269	28854
+269	95491
+269	42603
+269	52963
+269	69817
+269	7683
+269	20706
+269	28514
+269	90357
+269	94106
+269	11747
+269	4391
+269	87036
+269	98535
+269	15705
+269	33377
+270	29644
+270	12625
+270	87995
+270	43639
+270	86528
+270	19537
+270	4888
+270	83265
+270	69340
+270	30739
+270	54322
+270	44978
+270	79864
+270	81047
+270	11979
+270	15773
+270	67833
+270	17898
+270	42028
+270	44448
+270	266
+270	47501
+271	82210
+271	82492
+271	6372
+271	95639
+271	70700
+271	66957
+271	8785
+271	46886
+271	73354
+271	48249
+271	76498
+271	1806
+271	99207
+271	88486
+271	42532
+271	54805
+271	65049
+271	83394
+271	76220
+271	93191
+271	69635
+271	46493
+272	12996
+272	60332
+272	44462
+272	50171
+272	51472
+272	21550
+272	39267
+272	23379
+272	3048
+272	41428
+272	89920
+272	88041
+272	29132
+272	78753
+272	77098
+272	75079
+272	2755
+272	22789
+272	61224
+272	60814
+272	43829
+272	36914
+273	20285
+273	93017
+273	68563
+273	53258
+273	92215
+273	50333
+273	97902
+273	9742
+273	95664
+273	39863
+273	65525
+273	51868
+273	35590
+273	57959
+273	52179
+273	55350
+273	90303
+273	15222
+273	64379
+273	55097
+273	34573
+273	95122
+274	63214
+274	59647
+274	20256
+274	80697
+274	24945
+274	35246
+274	619
+274	60964
+274	78385
+274	44411
+274	23403
+274	96053
+274	16059
+274	18572
+274	97666
+274	97482
+274	74638
+274	76590
+274	18314
+274	3307
+274	38878
+274	60604
+275	94051
+275	23360
+275	63774
+275	39860
+275	75066
+275	63692
+275	42895
+275	21234
+275	92339
+275	63429
+275	26281
+275	41130
+275	34801
+275	72332
+275	30568
+275	59805
+275	80132
+275	66178
+275	60371
+275	39634
+275	65081
+275	7902
+276	9954
+276	6183
+276	14226
+276	94830
+276	2900
+276	26437
+276	56818
+276	92672
+276	1678
+276	78318
+276	28977
+276	91107
+276	12283
+276	76790
+276	43247
+276	10499
+276	94720
+276	71232
+276	82747
+276	80695
+276	16251
+276	31551
+277	43736
+277	76583
+277	6020
+277	17037
+277	8863
+277	14008
+277	85613
+277	96178
+277	7720
+277	69356
+277	67232
+277	83591
+277	49258
+277	77685
+277	86464
+277	9412
+277	12470
+277	76191
+277	97459
+277	82723
+277	34393
+277	79863
+278	59523
+278	36187
+278	62503
+278	61821
+278	19145
+278	46124
+278	77926
+278	17776
+278	72800
+278	11465
+278	56286
+278	41263
+278	1955
+278	48797
+278	87217
+278	98447
+278	30671
+278	85660
+278	78673
+278	97196
+279	53935
+279	27861
+279	41343
+279	1608
+279	97167
+279	89759
+279	26383
+279	17405
+279	14897
+279	57452
+279	18032
+279	9559
+279	9127
+279	74741
+279	54299
+279	19610
+279	57230
+279	90420
+279	40008
+279	10543
+280	71792
+280	89408
+280	26057
+280	39552
+280	87255
+280	28260
+280	39878
+280	27736
+280	76622
+280	96858
+280	87029
+280	52120
+280	57996
+280	40501
+280	36143
+280	62330
+280	8594
+280	51170
+280	3186
+280	91403
+281	62296
+281	44067
+281	36217
+281	17198
+281	2688
+281	33672
+281	47025
+281	70203
+281	14903
+281	10128
+281	49949
+281	78729
+281	27968
+281	46333
+281	35093
+281	51755
+281	65910
+281	94408
+281	95666
+281	75180
+282	80982
+282	56909
+282	22662
+282	91633
+282	80373
+282	74955
+282	4853
+282	8319
+282	42117
+282	26680
+282	93175
+282	71560
+282	89851
+282	49236
+282	6433
+282	81922
+282	73990
+282	45540
+282	61320
+282	47392
+283	95119
+283	53455
+283	78636
+283	10209
+283	99203
+283	85614
+283	63458
+283	41909
+283	19148
+283	7772
+283	74331
+283	3911
+283	33331
+283	84117
+283	70273
+283	68761
+283	25880
+283	98782
+283	30070
+283	17606
+284	99286
+284	27293
+284	63276
+284	2008
+284	78183
+284	50598
+284	21423
+284	53366
+284	30335
+284	10757
+284	53623
+284	67353
+284	61679
+284	53205
+284	84207
+284	52478
+284	33252
+284	8789
+284	49074
+284	9165
+285	98768
+285	78173
+285	62310
+285	58567
+285	26393
+285	69979
+285	72113
+285	95229
+285	91514
+285	41046
+285	57072
+285	89192
+285	77882
+285	70955
+285	10900
+285	82283
+285	29094
+285	15690
+285	57497
+285	46260
+286	52654
+286	59238
+286	26950
+286	65225
+286	53349
+286	85817
+286	89903
+286	33681
+286	32241
+286	57488
+286	65870
+286	93242
+286	68759
+286	436
+286	94567
+286	40837
+286	38185
+286	10791
+286	81179
+286	30411
+287	39183
+287	18995
+287	67204
+287	5714
+287	29154
+287	84389
+287	24254
+287	91065
+287	84049
+287	58688
+287	29915
+287	89376
+287	33146
+287	22200
+287	79792
+287	75121
+287	10394
+287	98852
+287	6023
+287	5474
+288	16323
+288	8153
+288	11793
+288	12441
+288	26509
+288	90709
+288	33270
+288	24936
+288	97773
+288	81571
+288	87263
+288	86300
+288	82426
+288	24285
+288	84497
+288	57532
+288	23090
+288	98080
+288	90074
+288	17354
+289	17759
+289	39237
+289	73318
+289	56906
+289	75727
+289	78370
+289	57583
+289	10856
+289	28901
+289	54794
+289	89416
+289	99328
+289	25850
+289	30345
+289	49668
+289	98699
+289	47474
+289	38343
+289	57965
+289	65159
+290	81085
+290	83403
+290	28816
+290	28597
+290	88203
+290	82949
+290	60203
+290	6370
+290	84542
+290	65
+290	62209
+290	56385
+290	43717
+290	65019
+290	67181
+290	70099
+290	60052
+290	7031
+290	19888
+290	94002
+290	45030
+290	53716
+291	80487
+291	78149
+291	77198
+291	46006
+291	77565
+291	10661
+291	29966
+291	67358
+291	28521
+291	46897
+291	31537
+291	61823
+291	99116
+291	66639
+291	9345
+291	18786
+291	87315
+291	63420
+291	16938
+291	62915
+291	68074
+291	37008
+292	72937
+292	12959
+292	33618
+292	86884
+292	10129
+292	8623
+292	69659
+292	109
+292	90633
+292	51869
+292	28883
+292	18623
+292	54160
+292	97414
+292	15154
+292	94736
+292	39573
+292	52358
+292	71601
+292	1706
+292	33197
+292	17071
+293	31850
+293	91718
+293	56505
+293	9547
+293	3658
+293	85176
+293	10812
+293	32466
+293	62722
+293	74261
+293	52008
+293	70594
+293	63053
+293	93839
+293	99966
+293	39545
+293	64142
+293	72471
+293	79146
+293	68671
+293	24526
+293	2795
+294	39700
+294	14982
+294	47670
+294	84375
+294	99271
+294	56496
+294	23633
+294	81648
+294	99418
+294	22562
+294	57696
+294	94024
+294	11736
+294	28549
+294	1256
+294	16713
+294	5818
+294	40793
+294	41316
+294	67598
+294	26718
+294	25506
+295	93402
+295	97878
+295	67168
+295	98173
+295	7520
+295	53197
+295	77989
+295	6511
+295	63012
+295	18804
+295	61703
+295	38724
+295	35138
+295	33623
+295	78387
+295	44460
+295	7577
+295	45873
+295	87968
+295	84152
+295	14458
+295	41783
+296	26025
+296	85132
+296	80753
+296	79494
+296	8453
+296	49850
+296	91710
+296	43934
+296	82614
+296	85178
+296	39251
+296	61561
+296	15650
+296	30572
+296	16244
+296	84458
+296	56057
+296	51514
+296	76038
+296	14852
+296	20330
+296	74519
+297	24621
+297	9175
+297	848
+297	21571
+297	71020
+297	80178
+297	23692
+297	19743
+297	55994
+297	49600
+297	10444
+297	18252
+297	13552
+297	77800
+297	76247
+297	75570
+297	522
+297	51932
+297	69504
+297	30514
+297	64415
+297	2080
+298	52310
+298	43142
+298	31857
+298	98512
+298	44332
+298	85355
+298	21803
+298	62861
+298	58374
+298	5779
+298	18926
+298	96358
+298	75377
+298	37461
+298	42144
+298	93377
+298	26414
+298	59881
+298	96110
+298	41724
+298	76217
+298	94668
+299	35183
+299	57898
+299	77711
+299	11000
+299	79273
+299	72404
+299	62564
+299	2695
+299	75330
+299	56788
+299	28133
+299	90473
+299	1514
+299	87412
+299	37132
+299	66859
+299	4448
+299	87668
+299	80289
+299	86345
+299	68055
+299	25541
+300	13285
+300	97840
+300	26320
+300	15550
+300	54003
+300	79943
+300	81049
+300	92367
+300	63416
+300	94825
+300	3532
+300	66658
+300	93674
+300	40570
+300	69168
+300	63916
+300	43959
+300	90384
+300	89205
+300	51130
+300	1249
+300	61105
+301	30371
+301	22876
+301	56735
+301	96540
+301	74952
+301	80680
+301	61954
+301	79380
+301	26820
+301	56430
+301	99420
+301	51395
+301	54985
+301	10738
+301	56947
+301	55991
+301	40400
+301	19907
+301	28482
+301	12167
+301	74065
+301	75179
+302	45405
+302	53262
+302	78998
+302	83968
+302	87830
+302	45408
+302	37963
+302	49502
+302	9705
+302	77552
+302	62028
+302	33751
+302	65108
+302	83522
+302	94904
+302	35902
+302	67544
+302	91373
+302	74629
+302	84534
+302	15678
+302	98511
+303	56772
+303	93633
+303	36676
+303	52257
+303	91754
+303	72482
+303	62874
+303	44661
+303	78085
+303	38371
+303	25470
+303	68937
+303	54946
+303	31741
+303	55250
+303	92960
+303	65077
+303	90057
+303	11493
+303	6693
+303	32369
+303	315
+304	53723
+304	29143
+304	43222
+304	88863
+304	36036
+304	55511
+304	74039
+304	39112
+304	87231
+304	83836
+304	52474
+304	88002
+304	98757
+304	42659
+304	59777
+304	7951
+304	69680
+304	78756
+304	29172
+304	35079
+304	34670
+304	11392
+305	65816
+305	6565
+305	61134
+305	40167
+305	51917
+305	62344
+305	49195
+305	44917
+305	45682
+305	97544
+305	19136
+305	93008
+305	98909
+305	99080
+305	79750
+305	16421
+305	89092
+305	36985
+305	99905
+305	41974
+305	27847
+305	15931
+306	2366
+306	45752
+306	61672
+306	29629
+306	43163
+306	3376
+306	23890
+306	9349
+306	84762
+306	33594
+306	4785
+306	58318
+306	64961
+306	7585
+306	17348
+306	10510
+306	34956
+306	55311
+306	36022
+306	54298
+306	24251
+306	99803
+307	50787
+307	78308
+307	26108
+307	72763
+307	83344
+307	40627
+307	21741
+307	21495
+307	50252
+307	46904
+307	88428
+307	92932
+307	34636
+307	35791
+307	45941
+307	99771
+307	80183
+307	32594
+307	19578
+307	77010
+307	92547
+307	52784
+308	62026
+308	16954
+308	19991
+308	66082
+308	77110
+308	96824
+308	45896
+308	76158
+308	14349
+308	56643
+308	80057
+308	20094
+308	36579
+308	87059
+308	51300
+308	84885
+308	28649
+308	78077
+308	32237
+308	82124
+308	3706
+308	89078
+309	26572
+309	27926
+309	46061
+309	32212
+309	92458
+309	27957
+309	92804
+309	22409
+309	59191
+309	88946
+309	42224
+309	34767
+309	96131
+309	33834
+309	76156
+309	45916
+309	88340
+309	15829
+309	21832
+309	42249
+309	30015
+309	55197
+310	75277
+310	1364
+310	91148
+310	91516
+310	74808
+310	79669
+310	54287
+310	56969
+310	98228
+310	83122
+310	76542
+310	79585
+310	2360
+310	84893
+310	41790
+310	34180
+310	39450
+310	89782
+310	72134
+310	25715
+310	71220
+310	35031
+311	14379
+311	83152
+311	65348
+311	25644
+311	52878
+311	75062
+311	48934
+311	61579
+311	3442
+311	72296
+311	31031
+311	99616
+311	31312
+311	86211
+311	59890
+311	94465
+311	99732
+311	94822
+311	25187
+311	63924
+311	35373
+311	21663
+312	36426
+312	76678
+312	14942
+312	19241
+312	34957
+312	11212
+312	74664
+312	3217
+312	98051
+312	17884
+312	50567
+312	75402
+312	42797
+312	8196
+312	40108
+312	52469
+312	73933
+312	34676
+312	22146
+312	82458
+312	78557
+312	83261
+313	75836
+313	12625
+313	65453
+313	6854
+313	17898
+313	19537
+313	1137
+313	4888
+313	67833
+313	30739
+313	70680
+313	44978
+313	16780
+313	27750
+313	66588
+313	53546
+313	54322
+313	48638
+313	44448
+313	79864
+313	43055
+313	29644
+314	12996
+314	55518
+314	44462
+314	50171
+314	51472
+314	21550
+314	92151
+314	85019
+314	88041
+314	41428
+314	89920
+314	81321
+314	73110
+314	78753
+314	30161
+314	17941
+314	53448
+314	20886
+314	28313
+314	61224
+314	43829
+314	45367
+315	85003
+315	95707
+315	48864
+315	77029
+315	68779
+315	39255
+315	189
+315	74264
+315	39265
+315	56227
+315	39646
+315	28281
+315	25813
+315	30400
+315	85724
+315	96166
+315	2421
+315	14701
+315	54290
+315	51888
+315	1355
+315	60841
+316	57626
+316	28712
+316	10490
+316	94478
+316	92802
+316	5915
+316	2423
+316	19030
+316	24299
+316	85624
+316	88704
+316	45250
+316	37844
+316	32294
+316	47572
+316	16070
+316	59298
+316	85237
+316	56543
+316	54426
+316	65806
+316	97369
+316	83595
+317	84722
+317	17666
+317	65241
+317	51868
+317	66219
+317	75255
+317	54653
+317	9742
+317	2853
+317	72495
+317	65525
+317	54130
+317	96267
+317	64624
+317	47850
+317	64908
+317	55350
+317	15222
+317	75418
+317	55097
+317	85453
+317	56801
+318	63214
+318	59647
+318	60583
+318	76590
+318	24945
+318	35246
+318	8514
+318	60964
+318	75598
+318	24556
+318	34
+318	96053
+318	16059
+318	22620
+318	8700
+318	8262
+318	93745
+318	61706
+318	64962
+318	3307
+318	38878
+318	57289
+319	23480
+319	90120
+319	73316
+319	25497
+319	82870
+319	48736
+319	47506
+319	22242
+319	89922
+319	41620
+319	15025
+319	668
+319	89154
+319	28789
+319	58711
+319	12180
+319	44011
+319	88921
+319	49604
+319	16851
+319	10094
+319	52641
+320	76191
+320	34695
+320	2842
+320	6020
+320	8863
+320	68379
+320	69356
+320	96178
+320	86464
+320	7720
+320	67232
+320	72797
+320	49258
+320	25779
+320	18539
+320	83591
+320	12470
+320	7553
+320	36074
+320	60597
+320	97459
+320	79863
+321	69448
+321	12268
+321	80898
+321	27338
+321	72969
+321	15547
+321	69912
+321	18303
+321	82329
+321	93318
+321	4188
+321	39053
+321	43392
+321	35544
+321	57880
+321	11960
+321	48250
+321	40701
+321	45323
+321	22793
+321	85140
+321	33080
+322	70336
+322	99108
+322	23968
+322	36187
+322	1955
+322	46124
+322	98447
+322	19145
+322	61821
+322	72800
+322	44064
+322	86048
+322	56574
+322	4506
+322	20570
+322	75511
+322	72006
+322	77926
+322	35111
+322	59523
+323	64203
+323	9127
+323	41343
+323	10543
+323	96106
+323	11872
+323	67574
+323	19610
+323	90420
+323	57452
+323	89410
+323	66036
+323	89759
+323	78266
+323	89908
+323	15996
+323	26383
+323	58199
+323	27861
+323	62970
+324	9794
+324	76722
+324	50457
+324	29054
+324	87255
+324	28260
+324	39878
+324	56271
+324	76622
+324	26057
+324	57254
+324	97696
+324	70567
+324	73728
+324	36143
+324	18666
+324	8594
+324	85899
+324	86965
+324	41105
+325	63535
+325	44067
+325	36217
+325	94408
+325	46333
+325	65910
+325	70314
+325	9811
+325	14903
+325	10128
+325	67766
+325	78729
+325	48897
+325	16075
+325	84161
+325	68281
+325	20612
+325	75180
+325	79018
+325	51393
+326	80982
+326	73900
+326	73990
+326	91633
+326	74964
+326	61320
+326	56909
+326	75034
+326	47392
+326	93175
+326	57369
+326	60476
+326	37513
+326	80373
+326	2005
+326	54677
+326	20383
+326	64823
+326	34416
+326	81866
+327	36668
+327	27862
+327	78246
+327	70251
+327	44228
+327	61679
+327	21423
+327	49074
+327	52478
+327	53366
+327	50598
+327	67283
+327	53205
+327	33252
+327	54576
+327	42444
+327	8789
+327	27479
+327	90924
+327	73519
+328	42042
+328	90753
+328	44808
+328	21048
+328	86407
+328	36715
+328	14240
+328	78239
+328	99818
+328	84231
+328	47674
+328	89564
+328	12997
+328	52361
+328	84404
+328	75315
+328	54127
+328	45660
+328	90520
+328	14601
+329	71237
+329	52348
+329	58574
+329	62383
+329	67779
+329	58581
+329	50912
+329	573
+329	6810
+329	49769
+329	41283
+329	13129
+329	30583
+329	11183
+329	47822
+329	81336
+329	11042
+329	12901
+329	87749
+329	79263
+330	57497
+330	62310
+330	36151
+330	91945
+330	46224
+330	69979
+330	78173
+330	74200
+330	29094
+330	72113
+330	82283
+330	51492
+330	24967
+330	32368
+330	4884
+330	69292
+330	48735
+330	17805
+330	33014
+330	39010
+331	50573
+331	99657
+331	48441
+331	2698
+331	52285
+331	23661
+331	69880
+331	2679
+331	77515
+331	92275
+331	42124
+331	11308
+331	1717
+331	40960
+331	44473
+331	37772
+331	15055
+331	9352
+331	60080
+331	7466
+332	52654
+332	85817
+332	27461
+332	38386
+332	22479
+332	34716
+332	19498
+332	33681
+332	81834
+332	57488
+332	65870
+332	26109
+332	68759
+332	59238
+332	94567
+332	75280
+332	5883
+332	10791
+332	93242
+332	38422
+333	84527
+333	78097
+333	7307
+333	16179
+333	7247
+333	89690
+333	16375
+333	44185
+333	48268
+333	16569
+333	16650
+333	31902
+333	67441
+333	14030
+333	46500
+333	59010
+333	84344
+333	18796
+333	23894
+333	38181
+334	39183
+334	4956
+334	1272
+334	31385
+334	83715
+334	84389
+334	98852
+334	78069
+334	29915
+334	58688
+334	75121
+334	49113
+334	74483
+334	5714
+334	49154
+334	70069
+334	556
+334	6090
+334	65709
+334	72974
+335	46594
+335	81945
+335	75205
+335	31383
+335	65831
+335	37971
+335	55158
+335	62577
+335	23016
+335	90659
+335	42830
+335	26579
+335	90185
+335	20242
+335	42638
+335	69415
+335	14186
+335	18197
+335	95777
+335	51247
+336	91428
+336	33354
+336	84530
+336	24285
+336	26509
+336	52220
+336	47163
+336	36318
+336	97773
+336	31388
+336	36470
+336	3139
+336	62434
+336	60653
+336	53787
+336	98034
+336	23207
+336	31442
+336	20773
+336	30916
+337	17759
+337	53620
+337	471
+337	56906
+337	75727
+337	99201
+337	71411
+337	14832
+337	28901
+337	54794
+337	89416
+337	18634
+337	25850
+337	30345
+337	49668
+337	98699
+337	24048
+337	38343
+337	34806
+337	58480
+338	56385
+338	83403
+338	60914
+338	31684
+338	88203
+338	76131
+338	60203
+338	53716
+338	84542
+338	65
+338	62209
+338	60052
+338	2174
+338	6370
+338	26200
+338	25906
+338	45985
+338	11130
+338	19888
+338	94002
+338	35873
+338	28816
+338	12056
+339	48592
+339	17071
+339	94736
+339	71601
+339	28883
+339	80262
+339	69659
+339	34376
+339	64922
+339	3447
+339	52358
+339	2977
+339	12777
+339	91831
+339	12842
+339	21070
+339	42565
+339	46499
+339	88716
+339	3038
+339	33197
+339	90633
+339	44716
+340	64377
+340	91718
+340	42918
+340	66308
+340	9270
+340	85176
+340	57975
+340	45956
+340	62722
+340	74261
+340	57361
+340	2795
+340	93236
+340	9454
+340	79283
+340	29601
+340	79146
+340	6280
+340	20389
+340	26695
+340	89804
+340	1939
+340	58388
+341	41783
+341	60766
+341	67168
+341	98173
+341	7520
+341	53197
+341	78387
+341	86465
+341	61703
+341	18804
+341	67466
+341	38724
+341	83436
+341	60079
+341	63567
+341	93402
+341	63522
+341	99681
+341	56970
+341	84152
+341	14458
+341	59683
+341	18536
+342	31496
+342	77096
+342	83943
+342	29611
+342	24535
+342	37402
+342	50519
+342	28870
+342	5235
+342	27445
+342	19411
+342	5845
+342	13701
+342	12619
+342	90061
+342	57338
+342	60686
+342	71211
+342	68056
+342	84550
+342	39905
+342	2177
+342	92129
+343	74709
+343	56632
+343	50749
+343	56613
+343	32696
+343	67575
+343	3776
+343	26474
+343	22046
+343	68890
+343	55170
+343	20880
+343	75965
+343	56119
+343	85975
+343	14189
+343	2273
+343	86109
+343	98663
+343	96930
+343	29122
+343	73169
+343	74506
+344	85818
+344	31857
+344	29621
+344	87187
+344	55293
+344	70100
+344	10638
+344	62861
+344	58374
+344	84378
+344	50470
+344	99830
+344	75377
+344	37461
+344	36689
+344	91190
+344	26414
+344	13265
+344	96110
+344	41724
+344	61666
+344	53874
+344	94668
+345	212
+345	37132
+345	86345
+345	27808
+345	79273
+345	72404
+345	24031
+345	63778
+345	50534
+345	68055
+345	80289
+345	34389
+345	94452
+345	26759
+345	89928
+345	25541
+345	46718
+345	41271
+345	80170
+345	5337
+345	6985
+345	21988
+345	4393
+346	11930
+346	59372
+346	98031
+346	92146
+346	37753
+346	32567
+346	74323
+346	28455
+346	3128
+346	23101
+346	19156
+346	47469
+346	85736
+346	85473
+346	90857
+346	99914
+346	6468
+346	86943
+346	42534
+346	30306
+346	87016
+346	53809
+346	39602
+347	13285
+347	68164
+347	16557
+347	53590
+347	1249
+347	97840
+347	81049
+347	63916
+347	10663
+347	51130
+347	8307
+347	55244
+347	93674
+347	91486
+347	90384
+347	79943
+347	94825
+347	61216
+347	37933
+347	447
+347	3723
+347	59324
+347	34406
+348	59735
+348	22876
+348	56735
+348	96540
+348	62062
+348	80680
+348	93048
+348	79380
+348	53533
+348	56430
+348	916
+348	51395
+348	66615
+348	10738
+348	56947
+348	55991
+348	40400
+348	19907
+348	23315
+348	12167
+348	74065
+348	57906
+348	57021
+349	33751
+349	17520
+349	71726
+349	73157
+349	57588
+349	67544
+349	55504
+349	35902
+349	45490
+349	97252
+349	27787
+349	98511
+349	84003
+349	25543
+349	51287
+349	65108
+349	3026
+349	42820
+349	32136
+349	84534
+349	4065
+349	35264
+349	5630
+350	11392
+350	45258
+350	43222
+350	15450
+350	88863
+350	57378
+350	83836
+350	18164
+350	29172
+350	42038
+350	68818
+350	81393
+350	55511
+350	42659
+350	84093
+350	59777
+350	26847
+350	17035
+350	42227
+350	1311
+350	34670
+350	53723
+350	37126
+351	54298
+351	34956
+351	21222
+351	49610
+351	46807
+351	64961
+351	9349
+351	17348
+351	99721
+351	84762
+351	96566
+351	24251
+351	35882
+351	42311
+351	89292
+351	95259
+351	11915
+351	4785
+351	12376
+351	58878
+351	79993
+351	48525
+351	94511
+352	52784
+352	50893
+352	87592
+352	44763
+352	13917
+352	89297
+352	98036
+352	21495
+352	81643
+352	88428
+352	19578
+352	92932
+352	87229
+352	72763
+352	45941
+352	32594
+352	80183
+352	57272
+352	76755
+352	36826
+352	92547
+352	56348
+352	50787
+353	22507
+353	64104
+353	91148
+353	91516
+353	19121
+353	79669
+353	27347
+353	56969
+353	48550
+353	83122
+353	76542
+353	47983
+353	55727
+353	3741
+353	3331
+353	6935
+353	74228
+353	48288
+353	22123
+353	52108
+353	64893
+353	39249
+353	52099
+354	36426
+354	76678
+354	50567
+354	19241
+354	34957
+354	66123
+354	55673
+354	87796
+354	34530
+354	17884
+354	78557
+354	94060
+354	42797
+354	75108
+354	22302
+354	3401
+354	22263
+354	50109
+354	96044
+354	98051
+354	82458
+354	93337
+354	88899
+355	59886
+355	99558
+355	66681
+355	15578
+355	20085
+355	53829
+355	34709
+355	93812
+355	69995
+355	29986
+355	75230
+355	13151
+355	37701
+355	3927
+355	68907
+355	68833
+355	90321
+355	49007
+355	7088
+355	46873
+355	6017
+355	1018
+355	9579
+356	16675
+356	73722
+356	39199
+356	48643
+356	23927
+356	70308
+356	57496
+356	70698
+356	57982
+356	62808
+356	88800
+356	83823
+356	82191
+356	6162
+356	67041
+356	45712
+356	91925
+356	11424
+356	7559
+356	92307
+356	57631
+356	37140
+356	61068
+357	32512
+357	56778
+357	59412
+357	57630
+357	69817
+357	91106
+357	15705
+357	105
+357	18106
+357	84878
+357	32499
+357	34285
+357	20792
+357	22209
+357	98853
+357	79072
+357	51629
+357	7683
+357	83418
+357	74235
+357	19727
+357	57284
+357	33377
+358	86448
+358	70372
+358	70700
+358	79578
+358	27678
+358	65105
+358	83394
+358	48249
+358	66907
+358	76220
+358	76498
+358	82210
+358	32046
+358	64408
+358	51792
+358	89971
+358	75536
+358	53680
+358	76375
+358	14715
+358	28437
+358	4731
+358	76203
+359	12996
+359	55518
+359	90725
+359	50171
+359	16522
+359	48349
+359	92151
+359	90435
+359	88041
+359	11262
+359	85019
+359	53448
+359	77199
+359	76946
+359	26868
+359	17941
+359	75813
+359	20886
+359	585
+359	683
+359	99270
+359	29107
+359	12568
+360	16571
+360	27229
+360	81968
+360	50303
+360	82601
+360	95302
+360	1462
+360	75923
+360	5029
+360	62977
+360	84943
+360	42976
+360	16046
+360	62939
+360	35019
+360	2673
+360	37924
+360	91308
+360	82212
+360	35460
+360	35489
+360	58665
+360	64668
+361	49309
+361	22318
+361	84477
+361	13966
+361	48946
+361	4672
+361	75494
+361	22187
+361	48910
+361	64619
+361	6135
+361	55616
+361	30524
+361	75095
+361	26609
+361	12511
+361	68168
+361	44943
+361	31903
+361	74981
+361	649
+361	32449
+361	54102
+362	57626
+362	72876
+362	14062
+362	65611
+362	10439
+362	21000
+362	2423
+362	30964
+362	65059
+362	53464
+362	27802
+362	99521
+362	65806
+362	22393
+362	5390
+362	57595
+362	59298
+362	37844
+362	56543
+362	13782
+362	38095
+362	68024
+362	73319
+363	95122
+363	26659
+363	17666
+363	7865
+363	51785
+363	75255
+363	96267
+363	37114
+363	56626
+363	46519
+363	72495
+363	84722
+363	60562
+363	22338
+363	66219
+363	39884
+363	68095
+363	15222
+363	26616
+363	55097
+363	25724
+363	83544
+363	42690
+364	61793
+364	19229
+364	29082
+364	20643
+364	51089
+364	35246
+364	24556
+364	23800
+364	8514
+364	71130
+364	24963
+364	23336
+364	45039
+364	21683
+364	40852
+364	37161
+364	76612
+364	14456
+364	29415
+364	3307
+364	38878
+364	70144
+364	95116
+365	7902
+365	6256
+365	63774
+365	56718
+365	53821
+365	5583
+365	42808
+365	85432
+365	84022
+365	45212
+365	42895
+365	22071
+365	95369
+365	35312
+365	68329
+365	30568
+365	59548
+365	20557
+365	74139
+365	62207
+365	80105
+365	71531
+365	47401
+366	52641
+366	10094
+366	22242
+366	44407
+366	640
+366	82870
+366	72780
+366	15858
+366	89922
+366	41620
+366	15025
+366	87702
+366	89154
+366	55391
+366	76769
+366	58954
+366	47506
+366	99847
+366	32986
+366	63935
+366	668
+366	56293
+366	44011
+367	61478
+367	52032
+367	94559
+367	79130
+367	44850
+367	37782
+367	31907
+367	63089
+367	58212
+367	21108
+367	23883
+367	49485
+367	59617
+367	16859
+367	98680
+367	4455
+367	41133
+367	65298
+367	58069
+367	78533
+367	46497
+367	31566
+367	5081
+368	76191
+368	34695
+368	9888
+368	58649
+368	88043
+368	68379
+368	97784
+368	96178
+368	86464
+368	97459
+368	38074
+368	72797
+368	49258
+368	77238
+368	78068
+368	49219
+368	91976
+368	7553
+368	43736
+368	60597
+368	5728
+368	92064
+368	2842
+369	91888
+369	17321
+369	31352
+369	38683
+369	76244
+369	49428
+369	45056
+369	41694
+369	74863
+369	30094
+369	95938
+369	79836
+369	64372
+369	3960
+369	22489
+369	3231
+369	46554
+369	48761
+369	87205
+369	66684
+369	86087
+369	97963
+369	54429
+370	71063
+370	71461
+370	66491
+370	92592
+370	14157
+370	386
+370	20634
+370	84467
+370	17212
+370	23308
+370	34390
+370	19263
+370	27330
+370	91838
+370	70312
+370	44227
+370	95150
+370	17521
+370	60387
+370	80199
+371	77947
+371	29106
+371	30671
+371	35111
+371	19145
+371	55691
+371	72006
+371	1374
+371	69209
+371	4506
+371	47947
+371	64332
+371	16853
+371	36789
+371	66483
+371	5773
+371	12322
+371	30996
+371	75511
+371	64907
+372	66036
+372	64954
+372	11872
+372	10543
+372	31275
+372	78286
+372	19610
+372	54956
+372	78447
+372	7458
+372	93057
+372	73954
+372	22757
+372	85281
+372	42794
+372	67574
+372	90420
+372	46780
+372	58199
+372	84576
+373	41105
+373	74702
+373	86178
+373	15381
+373	87255
+373	50457
+373	39878
+373	85437
+373	35069
+373	26057
+373	20
+373	97813
+373	28528
+373	80374
+373	20854
+373	36636
+373	8594
+373	77759
+373	33982
+373	76027
+374	63535
+374	66785
+374	83032
+374	79018
+374	36217
+374	65910
+374	16075
+374	70314
+374	14903
+374	48897
+374	67766
+374	66877
+374	14537
+374	44137
+374	88622
+374	95180
+374	71089
+374	28220
+374	73561
+374	44067
+375	18967
+375	90240
+375	24658
+375	75036
+375	93602
+375	45480
+375	20811
+375	25958
+375	17746
+375	63727
+375	18018
+375	22371
+375	67223
+375	50881
+375	62829
+375	44882
+375	90667
+375	34391
+375	34640
+375	60897
+376	36668
+376	27862
+376	15303
+376	41816
+376	70251
+376	42444
+376	8789
+376	49074
+376	52478
+376	53366
+376	80012
+376	50305
+376	53205
+376	50598
+376	54576
+376	85840
+376	78246
+376	8780
+376	6382
+376	9674
+377	42042
+377	96825
+377	3333
+377	90753
+377	40027
+377	52992
+377	14601
+377	68909
+377	3320
+377	47674
+377	23665
+377	11692
+377	84693
+377	86407
+377	99818
+377	12997
+377	8624
+377	14240
+377	47004
+377	75315
+378	17805
+378	89192
+378	51492
+378	24220
+378	46224
+378	69292
+378	5860
+378	32368
+378	24437
+378	72113
+378	36911
+378	57497
+378	91945
+378	78180
+378	94257
+378	37697
+378	24967
+378	30837
+378	80867
+378	4310
+379	40837
+379	16023
+379	65689
+379	55990
+379	21975
+379	34716
+379	19498
+379	23079
+379	86360
+379	93242
+379	5883
+379	93339
+379	68759
+379	38422
+379	94567
+379	75280
+379	59238
+379	10791
+379	68804
+379	37759
+380	84527
+380	78097
+380	97743
+380	2141
+380	77201
+380	59010
+380	15227
+380	65322
+380	46500
+380	83602
+380	23894
+380	63421
+380	98467
+380	61977
+380	69790
+380	49268
+380	80442
+380	16375
+380	25564
+381	39183
+381	4956
+381	25199
+381	78069
+381	72897
+381	84389
+381	29694
+381	70069
+381	556
+381	72974
+381	75121
+381	66369
+381	6090
+381	49154
+381	5014
+381	36571
+381	65709
+381	45895
+381	80834
+381	60731
+382	46594
+382	95777
+382	75205
+382	24480
+382	64409
+382	37971
+382	55158
+382	23016
+382	94171
+382	90659
+382	42830
+382	26579
+382	90185
+382	43351
+382	18197
+382	71664
+382	17206
+382	45845
+382	69440
+382	51516
+383	60130
+383	86212
+383	98861
+383	23583
+383	93888
+383	76130
+383	40778
+383	94525
+383	63581
+383	32577
+383	67755
+383	16593
+383	7222
+383	82107
+383	25247
+383	30579
+383	16803
+383	76840
+383	37119
+383	65913
+384	82146
+384	33354
+384	84530
+384	62434
+384	26509
+384	52220
+384	32488
+384	86496
+384	97773
+384	31388
+384	36470
+384	85779
+384	91907
+384	23207
+384	95194
+384	98034
+384	56708
+384	82102
+384	28523
+384	29677
+385	17759
+385	80622
+385	471
+385	27814
+385	75727
+385	99201
+385	92403
+385	14832
+385	28901
+385	96012
+385	89416
+385	18634
+385	25850
+385	30345
+385	58480
+385	98699
+385	17219
+385	42208
+385	1853
+385	89236
+386	24930
+386	66972
+386	61845
+386	6457
+386	44205
+386	45235
+386	14307
+386	88171
+386	86226
+386	7482
+386	22865
+386	4803
+386	13744
+386	74131
+386	40794
+386	78483
+386	95366
+386	30892
+386	31166
+386	3457
+386	75104
+386	24893
+386	91786
+387	86290
+387	83403
+387	60914
+387	78133
+387	66229
+387	64352
+387	38901
+387	77063
+387	19888
+387	85199
+387	29080
+387	27047
+387	73619
+387	27419
+387	91357
+387	25906
+387	16541
+387	33570
+387	14758
+387	38198
+387	56532
+387	48161
+387	66580
+388	78863
+388	91832
+388	66908
+388	44926
+388	21864
+388	24935
+388	83566
+388	26858
+388	78071
+388	14290
+388	6205
+388	6384
+388	63129
+388	60008
+388	59039
+388	69089
+388	92892
+388	55125
+388	6754
+388	14862
+388	90087
+388	36196
+388	84486
+389	2795
+389	91718
+389	42918
+389	98607
+389	52008
+389	85176
+389	20372
+389	58388
+389	62722
+389	57361
+389	39545
+389	1939
+389	47627
+389	32968
+389	74340
+389	30363
+389	45956
+389	87223
+389	37735
+389	57975
+389	54042
+389	11275
+389	13354
+390	86109
+390	56632
+390	50749
+390	52458
+390	32696
+390	30163
+390	57722
+390	26474
+390	22046
+390	68890
+390	55170
+390	12856
+390	1674
+390	7614
+390	85975
+390	13659
+390	97927
+390	66817
+390	55781
+390	37092
+390	17028
+390	71248
+390	82853
+391	85818
+391	97008
+391	29621
+391	61666
+391	42144
+391	91190
+391	41724
+391	13539
+391	12373
+391	84378
+391	36053
+391	59970
+391	87187
+391	29491
+391	31316
+391	92627
+391	38099
+391	13265
+391	76289
+391	31857
+391	53874
+391	15428
+391	99830
+392	53062
+392	86056
+392	26250
+392	69743
+392	23972
+392	35103
+392	40666
+392	56023
+392	81477
+392	29090
+392	64760
+392	36056
+392	46512
+392	4349
+392	14907
+392	44775
+392	65749
+392	21701
+392	30878
+392	65590
+392	91280
+392	54533
+392	7338
+393	29399
+393	72804
+393	98031
+393	92146
+393	36290
+393	54675
+393	17733
+393	42534
+393	51733
+393	3128
+393	19156
+393	18894
+393	75905
+393	96174
+393	90857
+393	49265
+393	6468
+393	61229
+393	5227
+393	30306
+393	86943
+393	27162
+393	63618
+394	72859
+394	66658
+394	16557
+394	62157
+394	1249
+394	71420
+394	81049
+394	65534
+394	99967
+394	51130
+394	37933
+394	97840
+394	59324
+394	91486
+394	50944
+394	61216
+394	17428
+394	50718
+394	64864
+394	86227
+394	77532
+394	57447
+394	24015
+395	30652
+395	63176
+395	4469
+395	96540
+395	68803
+395	93048
+395	18830
+395	51388
+395	31668
+395	56430
+395	916
+395	51395
+395	66615
+395	48944
+395	56947
+395	55991
+395	98022
+395	58415
+395	23315
+395	12167
+395	43681
+395	55659
+395	57021
+396	98511
+396	50326
+396	43481
+396	27557
+396	51287
+396	94304
+396	43400
+396	35264
+396	27261
+396	55504
+396	27787
+396	33751
+396	84003
+396	25543
+396	73973
+396	18599
+396	2328
+396	8154
+396	32136
+396	36287
+396	4065
+396	24324
+396	30693
+397	17027
+397	24586
+397	38556
+397	84395
+397	29967
+397	3949
+397	52437
+397	12805
+397	49882
+397	9728
+397	50641
+397	98986
+397	384
+397	79316
+397	25083
+397	97589
+397	23035
+397	77757
+397	70474
+397	23846
+397	27915
+397	81778
+397	51458
+398	18605
+398	93633
+398	2909
+398	20762
+398	96490
+398	59901
+398	34386
+398	16416
+398	47539
+398	38371
+398	56998
+398	74059
+398	55405
+398	20969
+398	13809
+398	64146
+398	60564
+398	43423
+398	94570
+398	56844
+398	16154
+398	55739
+398	111
+399	11392
+399	14267
+399	99473
+399	65802
+399	88863
+399	26539
+399	83836
+399	18164
+399	96512
+399	42038
+399	48645
+399	88263
+399	55511
+399	69103
+399	38599
+399	22378
+399	97154
+399	29172
+399	42227
+399	57529
+399	99537
+399	70140
+399	37126
+400	31283
+400	48722
+400	8544
+400	25398
+400	48968
+400	80902
+400	14259
+400	67250
+400	14175
+400	58634
+400	99466
+400	12127
+400	97294
+400	64184
+400	93241
+400	51266
+400	20335
+400	98071
+400	44934
+400	75763
+400	92316
+400	55581
+400	30753
+401	24251
+401	65411
+401	46091
+401	61292
+401	11915
+401	95259
+401	9349
+401	12376
+401	56897
+401	77277
+401	17506
+401	40995
+401	35882
+401	42311
+401	89292
+401	10636
+401	46807
+401	4785
+401	99888
+401	15134
+401	87604
+401	90430
+401	54298
+402	92932
+402	78308
+402	97434
+402	44763
+402	98486
+402	89297
+402	30651
+402	34636
+402	81643
+402	73255
+402	98036
+402	5120
+402	80826
+402	10860
+402	86098
+402	77467
+402	89438
+402	40312
+402	34977
+402	87592
+402	92547
+402	11191
+402	17445
+403	26572
+403	81414
+403	46895
+403	40197
+403	21832
+403	18113
+403	33312
+403	42224
+403	3013
+403	68125
+403	23705
+403	65694
+403	96131
+403	28832
+403	13377
+403	66598
+403	99934
+403	69700
+403	63856
+403	51336
+403	17967
+403	3558
+403	36850
+404	94060
+404	429
+404	42228
+404	19241
+404	50109
+404	22302
+404	54903
+404	44396
+404	34530
+404	17884
+404	75108
+404	53378
+404	42797
+404	30891
+404	22470
+404	78654
+404	51433
+404	71995
+404	35595
+404	99403
+404	82458
+404	26126
+404	88899
+405	32695
+405	63796
+405	10771
+405	12680
+405	24493
+405	46873
+405	5425
+405	49007
+405	7088
+405	86811
+405	21451
+405	34895
+405	75168
+405	15578
+405	95900
+405	52481
+405	2210
+405	97704
+405	37586
+405	41668
+405	13524
+405	57476
+405	67164
+406	45712
+406	16378
+406	48643
+406	55321
+406	53943
+406	80908
+406	57496
+406	92307
+406	57982
+406	83823
+406	32279
+406	86534
+406	28497
+406	62437
+406	68375
+406	37760
+406	70442
+406	17581
+406	21434
+406	96343
+406	57631
+406	55784
+406	83900
+407	12996
+407	53448
+407	90725
+407	48279
+407	84226
+407	585
+407	21753
+407	90435
+407	88041
+407	11262
+407	88984
+407	76946
+407	77199
+407	50973
+407	58952
+407	66016
+407	60833
+407	20886
+407	33367
+407	87114
+407	99270
+407	95677
+407	69611
+408	34336
+408	41907
+408	50226
+408	8415
+408	68901
+408	41962
+408	50012
+408	37893
+408	48250
+408	22793
+408	33481
+408	48430
+408	58429
+408	64659
+408	79645
+408	8113
+408	85128
+408	25611
+408	18094
+408	55456
+408	87039
+408	5783
+408	46403
+409	95122
+409	94594
+409	61550
+409	7865
+409	51785
+409	76780
+409	25724
+409	65040
+409	26616
+409	6608
+409	56626
+409	46519
+409	60562
+409	22338
+409	89943
+409	4977
+409	92775
+409	56299
+409	20248
+409	50318
+409	8539
+409	83544
+409	55485
+410	61793
+410	63942
+410	28485
+410	15314
+410	51089
+410	21683
+410	24556
+410	29415
+410	71661
+410	83711
+410	25905
+410	13964
+410	56330
+410	73924
+410	89177
+410	82549
+410	70144
+410	81297
+410	16059
+410	51440
+410	49097
+410	73344
+410	44334
+411	47401
+411	75070
+411	6256
+411	30568
+411	35312
+411	5583
+411	42808
+411	85432
+411	84022
+411	80105
+411	42895
+411	2115
+411	20273
+411	19165
+411	44340
+411	73608
+411	79017
+411	20557
+411	62207
+411	45212
+411	65907
+411	7148
+411	95996
+412	38789
+412	25758
+412	82814
+412	94161
+412	63929
+412	17148
+412	11817
+412	56006
+412	61684
+412	35674
+412	87221
+412	46325
+412	49127
+412	6129
+412	35818
+412	97143
+412	10953
+412	46417
+412	54713
+412	37656
+412	7302
+412	59636
+412	10789
+413	8028
+413	41085
+413	3523
+413	48772
+413	8365
+413	43931
+413	57309
+413	8310
+413	12652
+413	64772
+413	21511
+413	1401
+413	58731
+413	44097
+413	80410
+413	30416
+413	4210
+413	22298
+413	77
+413	53024
+413	10224
+413	60422
+413	98500
+414	9117
+414	57974
+414	86728
+414	77807
+414	52480
+414	49762
+414	5918
+414	40120
+414	77687
+414	61974
+414	52850
+414	56282
+414	78050
+414	88830
+414	33665
+414	3524
+414	23065
+414	22492
+414	94201
+414	62644
+414	74150
+414	34430
+414	26454
+415	52641
+415	31347
+415	72448
+415	96363
+415	640
+415	82870
+415	33293
+415	69034
+415	27618
+415	41620
+415	9041
+415	61850
+415	89154
+415	63068
+415	76769
+415	66577
+415	54768
+415	69430
+415	40581
+415	61670
+415	8678
+415	79202
+415	91602
+416	91649
+416	17420
+416	96896
+416	60675
+416	35676
+416	7368
+416	86650
+416	56584
+416	82307
+416	99083
+416	56553
+416	37090
+416	32374
+416	47335
+416	69073
+416	58919
+416	27508
+416	60032
+416	98387
+416	55388
+416	67256
+416	18200
+416	96162
+417	50522
+417	59999
+417	12548
+417	58649
+417	88043
+417	77238
+417	97784
+417	18672
+417	80859
+417	97459
+417	71080
+417	9888
+417	83190
+417	60945
+417	42535
+417	78068
+417	91976
+417	7553
+417	92673
+417	60597
+417	5728
+417	87765
+417	2842
+418	71063
+418	24548
+418	95150
+418	65068
+418	2875
+418	60387
+418	66590
+418	71461
+418	84467
+418	24460
+418	23308
+418	19263
+418	8904
+418	24795
+418	80712
+418	4287
+418	91838
+418	5215
+418	82027
+418	92491
+418	69918
+419	64332
+419	14085
+419	56574
+419	35111
+419	19145
+419	55691
+419	47947
+419	42226
+419	26286
+419	4506
+419	83079
+419	91505
+419	15139
+419	87492
+419	74624
+419	82607
+419	12322
+419	94956
+419	35812
+419	21039
+419	33547
+420	66036
+420	81163
+420	84724
+420	10543
+420	31275
+420	85281
+420	46780
+420	19610
+420	67574
+420	7458
+420	93057
+420	61069
+420	22757
+420	78266
+420	90420
+420	64954
+420	25746
+420	26383
+420	78286
+420	58459
+420	50674
+421	41105
+421	85437
+421	2636
+421	3906
+421	87255
+421	77759
+421	35069
+421	28528
+421	19025
+421	62671
+421	20
+421	97813
+421	70567
+421	27120
+421	20854
+421	33304
+421	36636
+421	33982
+421	95092
+421	76027
+421	44161
+422	43215
+422	53317
+422	83032
+422	54442
+422	48604
+422	57621
+422	44137
+422	71089
+422	73561
+422	52970
+422	67766
+422	66877
+422	51360
+422	70314
+422	26568
+422	95180
+422	85561
+422	63535
+422	23604
+422	72394
+422	74705
+423	58449
+423	82713
+423	80373
+423	51843
+423	17894
+423	56909
+423	11819
+423	24775
+423	5784
+423	71560
+423	57369
+423	30396
+423	20868
+423	6237
+423	60168
+423	36403
+423	23254
+423	74383
+423	99432
+423	74183
+423	22569
+424	40412
+424	22178
+424	77877
+424	73084
+424	81136
+424	98782
+424	34666
+424	10986
+424	38733
+424	12357
+424	38142
+424	45870
+424	55474
+424	16452
+424	85483
+424	41187
+424	81958
+424	98538
+424	88697
+424	79856
+424	78748
+425	54576
+425	27862
+425	96080
+425	59869
+425	67377
+425	15303
+425	39260
+425	49074
+425	52478
+425	42444
+425	30564
+425	95839
+425	53205
+425	47092
+425	50305
+425	80012
+425	78246
+425	8780
+425	54473
+425	50575
+425	36668
+426	75315
+426	96825
+426	3333
+426	56710
+426	40027
+426	52992
+426	93979
+426	54127
+426	68145
+426	47674
+426	23665
+426	68729
+426	84693
+426	1062
+426	12997
+426	42042
+426	5170
+426	68309
+426	11692
+426	8624
+426	77841
+427	38266
+427	51492
+427	49475
+427	78180
+427	24967
+427	74200
+427	32368
+427	46224
+427	24437
+427	72113
+427	36911
+427	17805
+427	33014
+427	96331
+427	55574
+427	4310
+427	20246
+427	86882
+427	99210
+427	84771
+427	43213
+428	59575
+428	61084
+428	83259
+428	82898
+428	393
+428	46683
+428	13547
+428	11940
+428	16994
+428	80895
+428	21210
+428	40693
+428	69129
+428	73751
+428	32154
+428	80600
+428	22277
+428	58561
+428	52525
+428	38007
+428	40496
+429	93339
+429	16023
+429	1039
+429	55990
+429	21975
+429	72499
+429	19498
+429	38422
+429	1517
+429	19149
+429	29682
+429	65033
+429	26654
+429	86360
+429	94567
+429	69273
+429	85817
+429	16613
+429	94784
+429	95386
+429	56097
+430	30107
+430	93587
+430	8347
+430	89322
+430	63421
+430	83860
+430	65322
+430	96884
+430	7625
+430	59010
+430	96153
+430	61977
+430	476
+430	68017
+430	79610
+430	83515
+430	21807
+430	92164
+430	33928
+430	67990
+431	39183
+431	25199
+431	36571
+431	68132
+431	51925
+431	38523
+431	29694
+431	70069
+431	9212
+431	30339
+431	97621
+431	1929
+431	42549
+431	42222
+431	15475
+431	74483
+431	95127
+431	8869
+431	5014
+431	60731
+431	25739
+432	27779
+432	33354
+432	48787
+432	62434
+432	94354
+432	66882
+432	32488
+432	96721
+432	31442
+432	31388
+432	36470
+432	85779
+432	82102
+432	91907
+432	95194
+432	85545
+432	28917
+432	52228
+432	40792
+432	5293
+432	51033
+433	17759
+433	95448
+433	471
+433	27814
+433	40936
+433	49030
+433	92403
+433	25717
+433	54396
+433	96012
+433	62104
+433	17276
+433	25850
+433	24266
+433	58480
+433	1853
+433	69030
+433	80833
+433	75460
+433	89236
+433	49425
+434	98886
+434	21116
+434	957
+434	77742
+434	19453
+434	30221
+434	70903
+434	23484
+434	22008
+434	44112
+434	10693
+434	92503
+434	63647
+434	9837
+434	42107
+434	17205
+434	37702
+434	21704
+434	70560
+434	9059
+434	46257
+434	94880
+434	596
+435	70815
+435	39810
+435	93262
+435	56532
+435	6108
+435	64352
+435	42113
+435	62209
+435	29398
+435	14758
+435	29080
+435	5459
+435	76131
+435	77063
+435	49114
+435	36870
+435	56859
+435	60592
+435	28014
+435	33570
+435	55451
+435	60541
+435	91484
+436	78863
+436	91832
+436	66908
+436	44926
+436	21864
+436	69089
+436	83566
+436	14862
+436	6754
+436	14290
+436	60008
+436	33989
+436	63129
+436	96211
+436	37275
+436	70545
+436	31145
+436	7864
+436	64711
+436	36196
+436	3552
+436	73512
+436	84486
+437	11275
+437	94551
+437	42918
+437	98607
+437	58840
+437	86163
+437	78264
+437	45956
+437	98528
+437	58388
+437	13354
+437	27402
+437	9441
+437	32968
+437	32798
+437	30363
+437	74066
+437	86499
+437	29075
+437	79283
+437	25449
+437	61927
+437	82456
+438	59683
+438	44116
+438	93209
+438	98173
+438	68512
+438	99407
+438	88732
+438	86465
+438	61703
+438	96890
+438	67012
+438	47081
+438	6117
+438	86625
+438	10830
+438	44262
+438	53593
+438	48455
+438	48783
+438	48097
+438	47974
+438	94440
+438	53452
+439	89601
+439	98593
+439	23300
+439	16376
+439	29404
+439	41671
+439	30014
+439	41001
+439	66477
+439	65631
+439	35574
+439	52362
+439	8305
+439	96009
+439	74480
+439	31755
+439	49014
+439	21890
+439	67949
+439	39840
+439	90807
+439	8708
+439	11751
+440	212
+440	46718
+440	14988
+440	52264
+440	93951
+440	13831
+440	18657
+440	63778
+440	50534
+440	68055
+440	38862
+440	47232
+440	83625
+440	67264
+440	89870
+440	83165
+440	45005
+440	5707
+440	80170
+440	41303
+440	50104
+440	21988
+440	23395
+441	59324
+441	43764
+441	16557
+441	62157
+441	6000
+441	71420
+441	64864
+441	65534
+441	77532
+441	99967
+441	37933
+441	84201
+441	44282
+441	69235
+441	41152
+441	95616
+441	48335
+441	50944
+441	42890
+441	16073
+441	8307
+441	50718
+441	64443
+442	30711
+442	69530
+442	4469
+442	94643
+442	68803
+442	13394
+442	55659
+442	72795
+442	53533
+442	31668
+442	42706
+442	51395
+442	72916
+442	9884
+442	18830
+442	69594
+442	33400
+442	58415
+442	82555
+442	84312
+442	57240
+442	77249
+442	38004
+443	19408
+443	50326
+443	43481
+443	4201
+443	3879
+443	13029
+443	43400
+443	12818
+443	88148
+443	36287
+443	27787
+443	68199
+443	28154
+443	47255
+443	47324
+443	18599
+443	2328
+443	39356
+443	10713
+443	4224
+443	97093
+443	5630
+443	78594
+444	79898
+444	24586
+444	38556
+444	25083
+444	29967
+444	50270
+444	43176
+444	93750
+444	49882
+444	9728
+444	50641
+444	69641
+444	1945
+444	79316
+444	56448
+444	29011
+444	79884
+444	65216
+444	56284
+444	6223
+444	39956
+444	81778
+444	66316
+445	51633
+445	70793
+445	70421
+445	69064
+445	47188
+445	10140
+445	58348
+445	36090
+445	32124
+445	17698
+445	28140
+445	83927
+445	7928
+445	75292
+445	5210
+445	50181
+445	56893
+445	45647
+445	11436
+445	59270
+445	52378
+445	8522
+445	84614
+446	14138
+446	53363
+446	31125
+446	23032
+446	82662
+446	45221
+446	50967
+446	15185
+446	59301
+446	73160
+446	54804
+446	91430
+446	53060
+446	93922
+446	88160
+446	71236
+446	97689
+446	93059
+446	6476
+446	4726
+446	57482
+446	81025
+446	7624
+447	11392
+447	11109
+447	54694
+447	92874
+447	88863
+447	65802
+447	47246
+447	18164
+447	38599
+447	75306
+447	48645
+447	30116
+447	36764
+447	19910
+447	37848
+447	22378
+447	6005
+447	1045
+447	42227
+447	27627
+447	99537
+447	37678
+447	57248
+448	30753
+448	19422
+448	8544
+448	25398
+448	48968
+448	4746
+448	63253
+448	31976
+448	19801
+448	33586
+448	99466
+448	50281
+448	55581
+448	77484
+448	93241
+448	77464
+448	59702
+448	98071
+448	44934
+448	75763
+448	92316
+448	55416
+448	64945
+449	24251
+449	148
+449	46091
+449	29462
+449	26303
+449	35179
+449	61292
+449	3497
+449	84807
+449	77277
+449	15134
+449	89840
+449	28659
+449	16260
+449	85824
+449	90491
+449	91793
+449	33175
+449	12781
+449	46807
+449	53272
+449	90430
+449	54298
+450	52784
+450	11191
+450	97434
+450	44763
+450	98486
+450	89297
+450	80043
+450	2461
+450	73255
+450	88428
+450	68042
+450	1835
+450	80826
+450	36515
+450	21208
+450	85916
+450	77047
+450	40312
+450	98210
+450	1987
+450	44438
+450	53231
+450	21945
+451	36850
+451	20084
+451	28832
+451	40197
+451	21832
+451	69700
+451	33312
+451	53668
+451	99934
+451	51336
+451	23705
+451	46895
+451	96131
+451	93449
+451	63744
+451	32095
+451	12995
+451	3298
+451	17967
+451	81141
+451	64344
+451	66870
+451	68125
+452	60304
+452	72305
+452	10960
+452	57058
+452	95458
+452	81126
+452	53863
+452	72098
+452	90145
+452	90951
+452	85046
+452	45524
+452	92939
+452	20963
+452	54658
+452	76440
+452	86132
+452	15454
+452	84524
+452	17136
+452	26059
+452	72611
+452	48947
+453	39249
+453	64104
+453	51705
+453	91516
+453	55727
+453	24770
+453	64893
+453	98373
+453	52510
+453	39485
+453	70006
+453	98626
+453	4333
+453	34118
+453	98826
+453	47983
+453	65327
+453	4567
+453	62448
+453	96711
+453	45065
+453	42799
+453	73175
+454	8689
+454	44308
+454	66310
+454	56547
+454	72474
+454	8049
+454	84945
+454	1454
+454	4397
+454	57041
+454	91408
+454	92121
+454	35746
+454	47780
+454	2525
+454	98982
+454	16478
+454	42392
+454	40949
+454	80634
+454	79720
+454	49251
+454	79551
+455	94060
+455	95038
+455	53028
+455	82458
+455	50109
+455	22302
+455	30381
+455	44396
+455	34530
+455	68929
+455	33360
+455	35934
+455	18210
+455	30891
+455	21823
+455	78654
+455	6285
+455	50699
+455	41357
+455	37133
+455	87859
+455	26126
+455	21518
+456	37990
+456	76960
+456	16378
+456	4367
+456	8069
+456	37760
+456	70442
+456	47801
+456	28404
+456	95172
+456	32279
+456	27059
+456	28497
+456	98693
+456	81972
+456	88101
+456	11629
+456	14428
+456	21434
+456	96343
+456	55321
+456	6977
+456	92000
+457	46403
+457	39341
+457	33059
+457	85465
+457	68901
+457	95482
+457	25507
+457	40791
+457	7371
+457	22793
+457	39459
+457	38928
+457	32588
+457	56515
+457	18094
+457	59023
+457	23735
+457	71962
+457	30803
+457	47415
+457	81872
+457	88851
+457	28333
+458	83904
+458	55404
+458	57606
+458	51100
+458	30935
+458	37913
+458	57948
+458	26673
+458	26852
+458	81950
+458	14764
+458	24713
+458	18604
+458	82522
+458	78836
+458	88680
+458	73975
+458	63023
+458	18379
+458	40368
+458	75191
+458	77979
+458	55017
+459	80179
+459	33677
+459	46048
+459	10829
+459	68662
+459	68982
+459	14953
+459	17662
+459	1012
+459	20008
+459	58094
+459	15218
+459	65942
+459	21784
+459	76597
+459	78416
+459	91038
+459	6159
+459	38988
+459	75452
+459	1978
+459	548
+459	75538
+460	73468
+460	94009
+460	37930
+460	65611
+460	6967
+460	21000
+460	60414
+460	31160
+460	39078
+460	38095
+460	26472
+460	37166
+460	92279
+460	89889
+460	44682
+460	38574
+460	36316
+460	22393
+460	22568
+460	61943
+460	22488
+460	61610
+460	39008
+461	95122
+461	61649
+461	96457
+461	16580
+461	51785
+461	16139
+461	25724
+461	47942
+461	26616
+461	6608
+461	47809
+461	46519
+461	30708
+461	7494
+461	61550
+461	48433
+461	40927
+461	88939
+461	32822
+461	85453
+461	8539
+461	39884
+461	15739
+462	61793
+462	24647
+462	64348
+462	15314
+462	51089
+462	56330
+462	49097
+462	29415
+462	71661
+462	81297
+462	47753
+462	51931
+462	47597
+462	73924
+462	89177
+462	28010
+462	94275
+462	78418
+462	38283
+462	5758
+462	64102
+462	69284
+462	44334
+463	46325
+463	9988
+463	82814
+463	94161
+463	62393
+463	24458
+463	97143
+463	9596
+463	61684
+463	27813
+463	54713
+463	75487
+463	49127
+463	71652
+463	59636
+463	77553
+463	9704
+463	4767
+463	84535
+463	31553
+463	29799
+463	31548
+463	39460
+464	50522
+464	71113
+464	12548
+464	97258
+464	87765
+464	77238
+464	91976
+464	18672
+464	72039
+464	5728
+464	88370
+464	56817
+464	64198
+464	15091
+464	78640
+464	55538
+464	7475
+464	58476
+464	48341
+464	36179
+464	1212
+464	9461
+464	92673
+465	10014
+465	89878
+465	78440
+465	95196
+465	78735
+465	92649
+465	59138
+465	50741
+465	30486
+465	86087
+465	11075
+465	91301
+465	64372
+465	36662
+465	53254
+465	41944
+465	80668
+465	46031
+465	87316
+465	99965
+465	88751
+465	74058
+465	59802
+466	64332
+466	86560
+466	77401
+466	35812
+466	60374
+466	24314
+466	47947
+466	81723
+466	87785
+466	89301
+466	83079
+466	58730
+466	78451
+466	87492
+466	74624
+466	82607
+466	77133
+466	94956
+466	36992
+466	76435
+466	82430
+467	66036
+467	26798
+467	25746
+467	84724
+467	31275
+467	85281
+467	58459
+467	19610
+467	42763
+467	7458
+467	93057
+467	61069
+467	82497
+467	6224
+467	51448
+467	81163
+467	51943
+467	51290
+467	78266
+467	11711
+467	36606
+468	41105
+468	59568
+468	7876
+468	80374
+468	3906
+468	96648
+468	35069
+468	28528
+468	19025
+468	44161
+468	36065
+468	97813
+468	95092
+468	27120
+468	96459
+468	96231
+468	36636
+468	33982
+468	24924
+468	45538
+468	47418
+469	89708
+469	78876
+469	92991
+469	68128
+469	137
+469	24999
+469	76437
+469	6901
+469	3422
+469	29031
+469	64079
+469	97803
+469	4625
+469	69868
+469	15347
+469	24913
+469	9925
+469	46202
+469	36367
+469	85632
+469	40025
+470	90789
+470	22178
+470	16452
+470	41187
+470	81136
+470	77877
+470	65975
+470	10986
+470	84864
+470	12357
+470	38142
+470	34666
+470	40412
+470	38733
+470	47576
+470	30706
+470	69145
+470	45870
+470	64295
+470	35919
+470	55474
+471	83750
+471	36010
+471	94069
+471	15903
+471	325
+471	67928
+471	9953
+471	30247
+471	3224
+471	37720
+471	96775
+471	21565
+471	43699
+471	24534
+471	18006
+471	93603
+471	9646
+471	77881
+471	89658
+471	39140
+471	1321
+472	26403
+472	32017
+472	3183
+472	75036
+472	4863
+472	45480
+472	81637
+472	25958
+472	70239
+472	72635
+472	26793
+472	64
+472	38368
+472	63892
+472	81978
+472	44882
+472	23859
+472	89379
+472	3998
+472	90240
+472	30046
+473	54576
+473	21392
+473	96080
+473	59869
+473	67377
+473	47092
+473	39260
+473	27479
+473	52478
+473	15303
+473	80216
+473	95839
+473	66612
+473	34124
+473	59795
+473	80012
+473	78246
+473	8780
+473	54473
+473	37178
+473	78023
+474	17805
+474	49475
+474	55574
+474	90878
+474	78180
+474	99210
+474	33014
+474	4310
+474	79593
+474	72113
+474	86882
+474	38266
+474	84771
+474	66855
+474	75658
+474	82534
+474	20246
+474	30837
+474	46447
+474	26643
+474	84176
+475	64032
+475	16304
+475	73064
+475	40448
+475	4339
+475	3827
+475	31874
+475	93696
+475	92275
+475	36428
+475	99179
+475	20882
+475	53234
+475	70528
+475	64777
+475	93676
+475	37915
+475	32979
+475	3700
+475	18004
+475	40788
+476	59575
+476	61084
+476	54971
+476	82898
+476	393
+476	46683
+476	69129
+476	11940
+476	57283
+476	24335
+476	32271
+476	83018
+476	82057
+476	43463
+476	41881
+476	80895
+476	44115
+476	19118
+476	47827
+476	62775
+476	51933
+477	93339
+477	87413
+477	23374
+477	55990
+477	21975
+477	79213
+477	19498
+477	23667
+477	67645
+477	19149
+477	71274
+477	98662
+477	1517
+477	86360
+477	9202
+477	65033
+477	86061
+477	69273
+477	45537
+477	94180
+477	53773
+478	97038
+478	28988
+478	96153
+478	19575
+478	63421
+478	76169
+478	21807
+478	88077
+478	96127
+478	13512
+478	73131
+478	43034
+478	1735
+478	57216
+478	96141
+478	92164
+478	71871
+478	89048
+478	85229
+478	72263
+478	70524
+479	58533
+479	54146
+479	74073
+479	68132
+479	5942
+479	29295
+479	29694
+479	8190
+479	9212
+479	66982
+479	97621
+479	1929
+479	15475
+479	78983
+479	820
+479	38110
+479	95127
+479	42222
+479	48031
+479	88468
+479	8692
+480	27779
+480	40792
+480	10056
+480	98700
+480	94354
+480	66882
+480	32488
+480	96721
+480	49071
+480	27729
+480	56321
+480	51033
+480	83862
+480	29677
+480	95194
+480	5293
+480	71934
+480	52228
+480	28917
+480	16359
+480	85779
+481	80833
+481	26000
+481	471
+481	64276
+481	72568
+481	72716
+481	92403
+481	89510
+481	54396
+481	62104
+481	45187
+481	81449
+481	37034
+481	24266
+481	9273
+481	12112
+481	35525
+481	49425
+481	76699
+481	89236
+481	29767
+482	96937
+482	21116
+482	55717
+482	41251
+482	19453
+482	9059
+482	70560
+482	23484
+482	31598
+482	12165
+482	24983
+482	21704
+482	59199
+482	96340
+482	63360
+482	52593
+482	98016
+482	59147
+482	83421
+482	58383
+482	91590
+482	9673
+482	596
+483	60541
+483	61051
+483	69606
+483	96639
+483	51894
+483	38647
+483	42113
+483	69019
+483	29398
+483	14758
+483	33570
+483	86028
+483	29672
+483	77063
+483	39810
+483	18222
+483	72244
+483	27419
+483	58741
+483	36870
+483	55451
+483	69953
+483	38424
+484	10244
+484	12111
+484	5392
+484	44926
+484	36196
+484	77068
+484	35837
+484	97422
+484	81067
+484	65381
+484	84412
+484	15064
+484	52319
+484	9100
+484	37275
+484	77996
+484	93567
+484	7864
+484	95590
+484	73512
+484	33434
+484	60159
+484	84486
+485	9658
+485	70547
+485	92866
+485	95269
+485	64049
+485	53048
+485	48955
+485	63363
+485	72637
+485	72011
+485	25209
+485	10313
+485	55762
+485	84852
+485	21070
+485	3735
+485	77619
+485	35334
+485	12533
+485	15896
+485	17974
+485	69919
+485	33520
+486	80138
+486	35118
+486	66286
+486	68768
+486	96934
+486	52464
+486	74144
+486	19478
+486	43723
+486	75995
+486	31839
+486	76271
+486	63525
+486	85929
+486	19073
+486	74278
+486	64096
+486	34727
+486	55809
+486	3146
+486	15457
+486	78276
+486	94434
+487	41422
+487	9441
+487	32798
+487	87449
+487	41758
+487	70650
+487	86524
+487	54013
+487	54042
+487	87008
+487	37239
+487	11275
+487	93619
+487	47180
+487	68649
+487	86499
+487	43410
+487	2974
+487	62621
+487	50663
+487	37372
+487	94095
+487	94551
+488	36230
+488	44116
+488	93209
+488	75443
+488	89372
+488	99407
+488	88732
+488	65896
+488	61703
+488	53452
+488	67012
+488	97635
+488	6117
+488	86625
+488	10830
+488	28726
+488	48783
+488	48455
+488	81999
+488	72737
+488	47974
+488	5805
+488	44581
+489	89601
+489	9990
+489	75764
+489	16376
+489	94202
+489	41671
+489	30014
+489	41001
+489	89582
+489	65631
+489	36808
+489	98429
+489	3193
+489	31755
+489	74480
+489	92626
+489	49014
+489	21890
+489	65016
+489	22391
+489	74494
+489	8708
+489	47836
+490	94838
+490	78745
+490	92771
+490	1505
+490	76077
+490	66228
+490	95402
+490	76705
+490	77705
+490	89392
+490	83216
+490	27327
+490	66638
+490	99957
+490	1538
+490	86404
+490	12476
+490	61178
+490	73564
+490	14499
+490	1068
+490	2080
+490	77916
+491	81392
+491	65320
+491	4808
+491	52458
+491	11767
+491	97912
+491	57722
+491	39550
+491	70812
+491	99590
+491	74906
+491	24906
+491	85499
+491	21246
+491	81779
+491	26483
+491	24978
+491	88896
+491	88814
+491	16119
+491	11307
+491	71361
+491	51981
+492	85818
+492	65425
+492	52946
+492	93884
+492	8916
+492	56297
+492	65979
+492	2932
+492	65367
+492	29491
+492	97008
+492	2919
+492	33855
+492	79215
+492	77789
+492	44463
+492	25745
+492	13265
+492	39138
+492	7670
+492	91294
+492	15665
+492	25428
+493	93941
+493	72804
+493	52676
+493	43280
+493	73520
+493	33117
+493	55935
+493	42534
+493	33089
+493	39602
+493	79710
+493	15123
+493	75912
+493	1933
+493	65206
+493	49265
+493	73513
+493	57715
+493	5227
+493	31812
+493	29870
+493	94877
+493	13321
+494	64443
+494	43764
+494	94649
+494	62157
+494	56280
+494	20585
+494	39063
+494	65534
+494	6678
+494	99967
+494	50943
+494	87661
+494	31138
+494	8169
+494	36639
+494	6851
+494	95616
+494	70595
+494	21553
+494	22075
+494	48443
+494	7038
+494	36400
+495	30711
+495	43350
+495	72916
+495	42326
+495	71633
+495	67867
+495	79882
+495	84312
+495	89750
+495	35408
+495	90908
+495	98143
+495	8834
+495	4964
+495	69530
+495	1560
+495	67129
+495	7870
+495	17509
+495	21776
+495	91114
+495	45182
+495	30652
+496	19408
+496	97775
+496	36126
+496	54036
+496	81447
+496	13029
+496	43400
+496	12818
+496	46979
+496	36287
+496	27787
+496	41334
+496	28154
+496	21524
+496	46023
+496	18599
+496	2328
+496	39356
+496	63673
+496	4224
+496	67414
+496	27707
+496	42177
+497	40630
+497	43176
+497	38556
+497	4420
+497	12805
+497	63370
+497	48310
+497	89904
+497	66316
+497	1945
+497	50641
+497	84116
+497	31765
+497	67189
+497	20971
+497	24689
+497	96497
+497	24388
+497	93750
+497	39956
+497	6024
+497	31813
+497	5368
+498	1064
+498	96319
+498	64835
+498	23816
+498	47188
+498	10140
+498	58348
+498	91614
+498	97050
+498	17698
+498	28140
+498	34712
+498	83726
+498	75292
+498	5210
+498	68693
+498	56893
+498	64903
+498	11436
+498	59823
+498	52378
+498	30845
+498	89305
+499	19564
+499	53363
+499	31125
+499	74155
+499	82662
+499	33029
+499	57482
+499	15185
+499	73160
+499	5369
+499	67290
+499	93287
+499	38682
+499	93922
+499	53060
+499	86511
+499	34878
+499	93059
+499	29674
+499	30748
+499	64512
+499	81025
+499	36601
+500	37948
+500	82213
+500	75785
+500	19512
+500	94570
+500	59901
+500	111
+500	5990
+500	98775
+500	53957
+500	70046
+500	13053
+500	41304
+500	20969
+500	23272
+500	85324
+500	82861
+500	15489
+500	82054
+500	7353
+500	84406
+500	32139
+500	94249
+501	11392
+501	67615
+501	92874
+501	99163
+501	32717
+501	35850
+501	75462
+501	37848
+501	16785
+501	4221
+501	39774
+501	60016
+501	60769
+501	1292
+501	26539
+501	65802
+501	1078
+501	61270
+501	57248
+501	73649
+501	99537
+501	25985
+501	43029
+502	30753
+502	65804
+502	8544
+502	25398
+502	48968
+502	23169
+502	42905
+502	31976
+502	19801
+502	33586
+502	99466
+502	84532
+502	20974
+502	7076
+502	10731
+502	25845
+502	43440
+502	75959
+502	44934
+502	54100
+502	33115
+502	55416
+502	89713
+503	53272
+503	35179
+503	62769
+503	33175
+503	26303
+503	27263
+503	61292
+503	42018
+503	84807
+503	36964
+503	75667
+503	28762
+503	90491
+503	70237
+503	85824
+503	41027
+503	91793
+503	23371
+503	81377
+503	53076
+503	56398
+503	89321
+503	66906
+504	5120
+504	11191
+504	97434
+504	44763
+504	3287
+504	42911
+504	10063
+504	36687
+504	57865
+504	77047
+504	75041
+504	94928
+504	80826
+504	36515
+504	21208
+504	29705
+504	11638
+504	40312
+504	83642
+504	77419
+504	77489
+504	1835
+504	22756
+505	68395
+505	21798
+505	70280
+505	69329
+505	39861
+505	53668
+505	21790
+505	93667
+505	99934
+505	51336
+505	23705
+505	26380
+505	91472
+505	70414
+505	33312
+505	27533
+505	62029
+505	20877
+505	64344
+505	85698
+505	27540
+505	32095
+505	42745
+506	39249
+506	64104
+506	28119
+506	94823
+506	22192
+506	40374
+506	19591
+506	70006
+506	95567
+506	1164
+506	26900
+506	37901
+506	79048
+506	14952
+506	78347
+506	47983
+506	94774
+506	66596
+506	97867
+506	15097
+506	53035
+506	98806
+506	3886
+507	37990
+507	76960
+507	81972
+507	98693
+507	92000
+507	44689
+507	70442
+507	89743
+507	14428
+507	23990
+507	20926
+507	72028
+507	55321
+507	5377
+507	82734
+507	88101
+507	78296
+507	25600
+507	75772
+507	11629
+507	17971
+507	27059
+507	83900
+508	95453
+508	21554
+508	83934
+508	79763
+508	36787
+508	12197
+508	76640
+508	30808
+508	67113
+508	69896
+508	89971
+508	3044
+508	11462
+508	31094
+508	1665
+508	85559
+508	27894
+508	51786
+508	6356
+508	8275
+508	73380
+508	98872
+508	63644
+509	88939
+509	19142
+509	13271
+509	28296
+509	7259
+509	9632
+509	16139
+509	3869
+509	77335
+509	6608
+509	71308
+509	64718
+509	47440
+509	29447
+509	71373
+509	48433
+509	40927
+509	15736
+509	3922
+509	55453
+509	42523
+509	16489
+509	18963
+510	61793
+510	24647
+510	64348
+510	5758
+510	35157
+510	56330
+510	49097
+510	29415
+510	71661
+510	81297
+510	78418
+510	52217
+510	47597
+510	73924
+510	89177
+510	28010
+510	37294
+510	1416
+510	2231
+510	98074
+510	64102
+510	60716
+510	44334
+511	46325
+511	9988
+511	9704
+511	94161
+511	62393
+511	95507
+511	97143
+511	9596
+511	7180
+511	77224
+511	54713
+511	63312
+511	43367
+511	875
+511	35818
+511	77553
+511	36686
+511	51579
+511	7453
+511	25758
+511	90361
+511	25131
+511	39460
+512	50522
+512	95273
+512	20244
+512	97258
+512	95009
+512	41262
+512	91976
+512	18672
+512	1169
+512	24300
+512	9053
+512	58476
+512	10072
+512	41052
+512	45750
+512	91438
+512	7475
+512	78024
+512	51653
+512	31173
+512	98378
+512	78113
+512	71933
+513	10014
+513	89878
+513	78440
+513	95196
+513	78735
+513	11075
+513	14180
+513	94155
+513	30486
+513	86087
+513	25776
+513	18230
+513	65659
+513	36662
+513	53254
+513	41944
+513	80668
+513	79723
+513	20051
+513	21702
+513	59138
+513	74058
+513	59802
+514	94956
+514	76518
+514	26438
+514	35812
+514	60374
+514	89301
+514	28164
+514	81723
+514	87785
+514	58730
+514	83079
+514	36992
+514	78451
+514	27559
+514	29422
+514	39150
+514	77133
+514	64332
+514	81599
+514	76435
+514	11976
+514	95346
+514	83314
+515	69429
+515	6224
+515	83758
+515	23163
+515	53274
+515	60585
+515	42763
+515	62964
+515	91993
+515	7458
+515	93057
+515	61069
+515	35462
+515	96310
+515	18602
+515	4136
+515	85281
+515	11773
+515	26798
+515	19610
+515	38186
+515	53133
+515	3553
+516	39837
+516	22573
+516	69986
+516	30264
+516	12298
+516	27272
+516	24905
+516	1302
+516	43002
+516	95451
+516	59141
+516	36793
+516	35045
+516	58512
+516	80017
+516	91402
+516	18928
+516	62839
+516	45630
+516	83450
+516	36719
+516	30621
+516	49063
+517	33982
+517	59568
+517	60142
+517	80374
+517	3906
+517	96648
+517	35069
+517	28528
+517	31118
+517	68495
+517	36065
+517	97813
+517	95092
+517	27120
+517	97105
+517	96231
+517	3895
+517	43516
+517	16470
+517	45538
+517	47418
+517	67881
+517	41105
+518	89223
+518	97958
+518	66822
+518	27970
+518	66124
+518	51360
+518	14918
+518	13961
+518	40014
+518	33435
+518	26515
+518	50707
+518	54562
+518	17273
+518	54615
+518	89089
+518	12565
+518	20162
+518	99247
+518	98819
+518	59654
+518	58856
+518	89921
+519	19392
+519	19996
+519	92991
+519	68128
+519	72076
+519	24999
+519	9925
+519	28594
+519	85632
+519	29031
+519	76437
+519	97803
+519	28701
+519	137
+519	15347
+519	24913
+519	41243
+519	29954
+519	34188
+519	65458
+519	17370
+519	9774
+519	1092
+520	22795
+520	87484
+520	19744
+520	74292
+520	49906
+520	1384
+520	83648
+520	10868
+520	54445
+520	90891
+520	8309
+520	99437
+520	33626
+520	86294
+520	92744
+520	32687
+520	87850
+520	8652
+520	13574
+520	52241
+520	20075
+520	86097
+520	97070
+521	62261
+521	24375
+521	72265
+521	33203
+521	63919
+521	18236
+521	86830
+521	28880
+521	86541
+521	54239
+521	32204
+521	70975
+521	46613
+521	4586
+521	78692
+521	16218
+521	74308
+521	17523
+521	62444
+521	86883
+521	63107
+521	25118
+521	82637
+522	90789
+522	22178
+522	35919
+522	10986
+522	30706
+522	69145
+522	17951
+522	41187
+522	38733
+522	34666
+522	76594
+522	23779
+522	55474
+522	38788
+522	77877
+522	73084
+522	15279
+522	96810
+522	57382
+522	98538
+522	78748
+522	61922
+522	84864
+523	26403
+523	32017
+523	3183
+523	75036
+523	86196
+523	64050
+523	15484
+523	29761
+523	70239
+523	72635
+523	13090
+523	64
+523	68484
+523	63892
+523	81978
+523	12977
+523	23859
+523	89379
+523	75169
+523	15353
+523	96957
+523	14916
+523	8612
+524	54576
+524	21392
+524	96080
+524	32680
+524	67377
+524	47092
+524	39260
+524	32037
+524	27576
+524	84273
+524	30564
+524	78023
+524	66612
+524	59869
+524	83981
+524	17418
+524	23193
+524	80216
+524	27184
+524	37178
+524	25439
+524	35449
+524	29896
+525	14561
+525	52652
+525	87303
+525	24039
+525	29325
+525	97929
+525	26592
+525	77510
+525	64825
+525	26065
+525	39616
+525	97884
+525	28307
+525	6222
+525	83359
+525	54977
+525	12080
+525	43472
+525	95918
+525	69358
+525	75197
+525	85546
+525	6228
+526	38266
+526	49475
+526	55574
+526	90878
+526	75658
+526	99210
+526	33014
+526	4310
+526	79593
+526	72113
+526	86882
+526	66855
+526	84771
+526	82534
+526	34571
+526	26643
+526	20246
+526	84176
+526	66148
+526	58036
+526	93312
+526	10268
+526	38281
+527	18004
+527	16304
+527	83
+527	40448
+527	91979
+527	13965
+527	99179
+527	37915
+527	93676
+527	40788
+527	3700
+527	20882
+527	61340
+527	37293
+527	59103
+527	70528
+527	32979
+527	61373
+527	33628
+527	34363
+527	50449
+527	33442
+527	64086
+528	76328
+528	3702
+528	13594
+528	97745
+528	36297
+528	53833
+528	83474
+528	12051
+528	69967
+528	70845
+528	336
+528	73591
+528	94893
+528	52192
+528	63236
+528	47320
+528	4527
+528	73711
+528	98141
+528	52476
+528	46894
+528	30342
+528	71273
+529	51933
+529	61084
+529	54971
+529	82898
+529	393
+529	44826
+529	69129
+529	26444
+529	57283
+529	24335
+529	32271
+529	83018
+529	82057
+529	19118
+529	5868
+529	80895
+529	44115
+529	33611
+529	58749
+529	94989
+529	14580
+529	41881
+529	34428
+530	93339
+530	54462
+530	23374
+530	55990
+530	21975
+530	9202
+530	33779
+530	59598
+530	67645
+530	88673
+530	84505
+530	43499
+530	22604
+530	62439
+530	92381
+530	49049
+530	86061
+530	45550
+530	9158
+530	90856
+530	95601
+530	17938
+530	9501
+531	58533
+531	85744
+531	5942
+531	78983
+531	67898
+531	74073
+531	29694
+531	70069
+531	9212
+531	71462
+531	54146
+531	66369
+531	79740
+531	9339
+531	40880
+531	38110
+531	95127
+531	75265
+531	29295
+531	48031
+531	20831
+531	89817
+531	32235
+532	64083
+532	70687
+532	96637
+532	77758
+532	11539
+532	73479
+532	83266
+532	35864
+532	40778
+532	8264
+532	49393
+532	57457
+532	80717
+532	68960
+532	61973
+532	46735
+532	43720
+532	16593
+532	78430
+532	58271
+532	46793
+532	39704
+532	97215
+533	20973
+533	70737
+533	47865
+533	41819
+533	62127
+533	65568
+533	55768
+533	43292
+533	37281
+533	90837
+533	36051
+533	84365
+533	92234
+533	10289
+533	16259
+533	5213
+533	57894
+533	62805
+533	60401
+533	79226
+533	68406
+533	19347
+533	1567
+534	27779
+534	40792
+534	10056
+534	62801
+534	52228
+534	66882
+534	71934
+534	96721
+534	90086
+534	27729
+534	3180
+534	8987
+534	88969
+534	2921
+534	95194
+534	83862
+534	94354
+534	16575
+534	1096
+534	32524
+534	99096
+534	10653
+534	76903
+535	47686
+535	16182
+535	6149
+535	94332
+535	47527
+535	84754
+535	15441
+535	63976
+535	97288
+535	61487
+535	53368
+535	6268
+535	96874
+535	86179
+535	7698
+535	28291
+535	38433
+535	43224
+535	25824
+535	84810
+535	96558
+535	26247
+535	67107
+536	87745
+536	27270
+536	5007
+536	8487
+536	50085
+536	2347
+536	53921
+536	75728
+536	26203
+536	61491
+536	67549
+536	14339
+536	42972
+536	34796
+536	92650
+536	65800
+536	23964
+536	62941
+536	69603
+536	50304
+536	88523
+536	77946
+536	78623
+537	80833
+537	52843
+537	471
+537	64276
+537	72568
+537	39779
+537	92403
+537	89510
+537	54396
+537	62104
+537	45187
+537	81449
+537	37034
+537	96028
+537	9273
+537	69030
+537	35525
+537	32811
+537	65433
+537	89236
+537	12946
+537	74823
+537	79931
+538	18444
+538	32508
+538	35173
+538	64424
+538	38647
+538	981
+538	66433
+538	73712
+538	29398
+538	14758
+538	42113
+538	39788
+538	95278
+538	77063
+538	69019
+538	18222
+538	49114
+538	22992
+538	36870
+538	16352
+538	28151
+538	85116
+538	17853
+539	10244
+539	59727
+539	61767
+539	44926
+539	36196
+539	58540
+539	35837
+539	33434
+539	61256
+539	45528
+539	91329
+539	84536
+539	95847
+539	20087
+539	37275
+539	51118
+539	10167
+539	11675
+539	87852
+539	83849
+539	83198
+539	34822
+539	45548
+540	9658
+540	70547
+540	92866
+540	95269
+540	64049
+540	53048
+540	48955
+540	63363
+540	72637
+540	72011
+540	6338
+540	10313
+540	88715
+540	84852
+540	22930
+540	74337
+540	47906
+540	15896
+540	12533
+540	85472
+540	13975
+540	69919
+540	73834
+541	21531
+541	32798
+541	84301
+541	77556
+541	2305
+541	65498
+541	17082
+541	49997
+541	92004
+541	87008
+541	37171
+541	70650
+541	76060
+541	40137
+541	54013
+541	66815
+541	41758
+541	74941
+541	62621
+541	37877
+541	87266
+541	97493
+541	89248
+542	94838
+542	78745
+542	26542
+542	1505
+542	17988
+542	66228
+542	12476
+542	76705
+542	74655
+542	89392
+542	83216
+542	27327
+542	43196
+542	16245
+542	7807
+542	61424
+542	7796
+542	37614
+542	59950
+542	14499
+542	75090
+542	29212
+542	38594
+543	81392
+543	65320
+543	4808
+543	63865
+543	11767
+543	97912
+543	57722
+543	10740
+543	781
+543	99590
+543	58669
+543	70812
+543	42644
+543	7614
+543	71100
+543	26483
+543	24978
+543	88896
+543	37984
+543	33347
+543	11307
+543	71751
+543	92476
+544	99988
+544	65425
+544	86004
+544	93884
+544	8916
+544	56297
+544	65979
+544	7670
+544	65182
+544	29491
+544	79215
+544	89113
+544	65146
+544	57763
+544	57922
+544	12763
+544	25745
+544	44463
+544	77789
+544	14891
+544	91294
+544	89420
+544	25428
+545	58755
+545	71525
+545	3748
+545	14988
+545	9856
+545	18923
+545	93951
+545	57615
+545	67216
+545	50104
+545	85579
+545	72592
+545	61976
+545	44386
+545	65946
+545	28357
+545	11588
+545	79590
+545	60880
+545	8442
+545	29053
+545	35930
+545	18907
+546	32448
+546	83293
+546	49004
+546	13030
+546	50801
+546	81689
+546	44093
+546	77754
+546	37703
+546	75890
+546	24653
+546	2028
+546	29161
+546	91291
+546	41789
+546	49027
+546	60871
+546	96547
+546	74320
+546	8628
+546	82223
+546	99805
+546	86080
+547	70618
+547	74071
+547	48480
+547	31219
+547	92628
+547	2465
+547	63620
+547	8169
+547	58924
+547	21553
+547	74242
+547	25937
+547	38372
+547	50943
+547	56280
+547	6851
+547	16053
+547	9246
+547	59837
+547	83363
+547	84745
+547	5318
+547	89070
+548	30711
+548	60652
+548	17174
+548	42326
+548	67297
+548	17509
+548	90908
+548	7153
+548	89750
+548	64077
+548	97778
+548	54461
+548	98287
+548	4964
+548	69451
+548	69594
+548	40789
+548	20754
+548	73306
+548	71285
+548	84424
+548	71816
+548	81466
+549	19408
+549	69785
+549	77118
+549	36126
+549	81447
+549	13029
+549	21524
+549	39356
+549	19339
+549	12818
+549	94447
+549	81947
+549	28154
+549	79409
+549	48737
+549	51201
+549	4224
+549	30316
+549	62162
+549	50679
+549	8896
+549	3367
+549	78594
+550	37032
+550	27331
+550	68348
+550	69192
+550	82839
+550	13758
+550	3161
+550	90675
+550	73258
+550	83367
+550	70085
+550	93803
+550	77257
+550	45419
+550	9507
+550	5450
+550	58772
+550	28803
+550	38514
+550	7013
+550	48976
+550	31941
+550	2559
+551	20998
+551	4541
+551	75785
+551	98747
+551	74098
+551	95374
+551	111
+551	29864
+551	60139
+551	53957
+551	24531
+551	29185
+551	26022
+551	87786
+551	23272
+551	85324
+551	85860
+551	98775
+551	15905
+551	9113
+551	84406
+551	80505
+551	47137
+552	53272
+552	28595
+552	46176
+552	33175
+552	26303
+552	53282
+552	99817
+552	54138
+552	84807
+552	36964
+552	2595
+552	11411
+552	36278
+552	89984
+552	23371
+552	41027
+552	91793
+552	82154
+552	56398
+552	76596
+552	62769
+552	89321
+552	20127
+553	5120
+553	76750
+553	1730
+553	44763
+553	64299
+553	9951
+553	10063
+553	36687
+553	57865
+553	77047
+553	68042
+553	94928
+553	80826
+553	36515
+553	21208
+553	42911
+553	96694
+553	40312
+553	83642
+553	77419
+553	26546
+553	24705
+553	80088
+554	50688
+554	45288
+554	54550
+554	99089
+554	53270
+554	26068
+554	70715
+554	62364
+554	46107
+554	64125
+554	46039
+554	15566
+554	15199
+554	46553
+554	58822
+554	37696
+554	98153
+554	87199
+554	42517
+554	60872
+554	71023
+554	88869
+554	54137
+555	51723
+555	1347
+555	45065
+555	61893
+555	15870
+555	65978
+555	19591
+555	62455
+555	14651
+555	1164
+555	26900
+555	75724
+555	55236
+555	8253
+555	33715
+555	83020
+555	94774
+555	40578
+555	40341
+555	27669
+555	12630
+555	98806
+555	7594
+556	77521
+556	72819
+556	53385
+556	91455
+556	2886
+556	32575
+556	76850
+556	10561
+556	78106
+556	9945
+556	6696
+556	91983
+556	77892
+556	48670
+556	44505
+556	52444
+556	22016
+556	3144
+556	67176
+556	24760
+556	34448
+556	80905
+556	76368
+557	83518
+557	86020
+557	2351
+557	56647
+557	36397
+557	53701
+557	88592
+557	4154
+557	29117
+557	70132
+557	16977
+557	1594
+557	82532
+557	96067
+557	70241
+557	77391
+557	47833
+557	39610
+557	61528
+557	5862
+557	9633
+557	23264
+557	59720
+558	31606
+558	70794
+558	61813
+558	40820
+558	10172
+558	57157
+558	12381
+558	64111
+558	549
+558	45449
+558	64261
+558	40292
+558	19545
+558	65144
+558	29046
+558	57494
+558	27417
+558	42160
+558	32165
+558	32858
+558	9584
+558	57476
+558	23468
+559	72028
+559	76960
+559	81972
+559	99900
+559	67578
+559	18665
+559	70442
+559	89743
+559	33280
+559	31133
+559	34205
+559	93586
+559	10712
+559	44689
+559	35081
+559	39584
+559	65199
+559	63951
+559	521
+559	95670
+559	46272
+559	27059
+559	72710
+560	95453
+560	17872
+560	82792
+560	79763
+560	36787
+560	43675
+560	17415
+560	20571
+560	69896
+560	18383
+560	5922
+560	37265
+560	47851
+560	11462
+560	11064
+560	23559
+560	22778
+560	51786
+560	6356
+560	33785
+560	20163
+560	37840
+560	64597
+561	61496
+561	91707
+561	95345
+561	87284
+561	31004
+561	94422
+561	93688
+561	23568
+561	84563
+561	83734
+561	4434
+561	91268
+561	45457
+561	99177
+561	82537
+561	77853
+561	66636
+561	70583
+561	24301
+561	36522
+561	40442
+561	85438
+561	30394
+562	44035
+562	93828
+562	47321
+562	29883
+562	40621
+562	91655
+562	38799
+562	55140
+562	29136
+562	79299
+562	51960
+562	55298
+562	12707
+562	94596
+562	22102
+562	17986
+562	15988
+562	37935
+562	23774
+562	44044
+562	35711
+562	57411
+562	53694
+563	46403
+563	39341
+563	54492
+563	44932
+563	75924
+563	95482
+563	58363
+563	40618
+563	85696
+563	33390
+563	33059
+563	35773
+563	30283
+563	12935
+563	57535
+563	89573
+563	80738
+563	79900
+563	62033
+563	27744
+563	66184
+563	45505
+563	72770
+564	42523
+564	64718
+564	51199
+564	26051
+564	18598
+564	16489
+564	77335
+564	9338
+564	15736
+564	2947
+564	58692
+564	2609
+564	47440
+564	91889
+564	64292
+564	48433
+564	93920
+564	34018
+564	7259
+564	37612
+564	29757
+564	26566
+564	4157
+565	52217
+565	71071
+565	64348
+565	15848
+565	28010
+565	56330
+565	52837
+565	37294
+565	339
+565	92520
+565	97275
+565	76837
+565	51443
+565	60716
+565	89177
+565	11593
+565	60554
+565	1416
+565	2231
+565	9400
+565	64102
+565	52418
+565	44334
+566	26943
+566	29833
+566	31431
+566	34998
+566	90129
+566	30993
+566	74946
+566	20019
+566	82967
+566	4686
+566	89934
+566	46890
+566	19366
+566	42015
+566	15887
+566	28801
+566	78477
+566	46506
+566	24357
+566	10221
+566	73907
+566	8312
+566	8714
+567	63312
+567	9988
+567	67914
+567	19193
+567	23925
+567	95507
+567	19075
+567	68060
+567	7180
+567	77224
+567	54713
+567	1729
+567	43367
+567	71840
+567	35818
+567	77553
+567	83560
+567	36686
+567	7453
+567	25758
+567	90361
+567	25131
+567	39460
+568	55710
+568	62629
+568	3191
+568	81706
+568	88818
+568	96029
+568	14196
+568	94563
+568	75361
+568	42223
+568	11879
+568	38981
+568	90867
+568	21962
+568	12859
+568	25989
+568	47815
+568	77301
+568	2778
+568	9569
+568	39664
+568	57303
+568	69793
+569	10014
+569	65659
+569	78440
+569	78932
+569	13847
+569	58791
+569	14180
+569	85532
+569	30486
+569	62594
+569	25776
+569	46020
+569	39902
+569	47386
+569	46785
+569	41944
+569	83211
+569	70671
+569	20051
+569	33500
+569	59138
+569	74058
+569	59802
+570	19263
+570	7642
+570	75744
+570	55287
+570	6775
+570	97512
+570	58375
+570	45264
+570	70181
+570	89102
+570	15565
+570	7960
+570	54801
+570	30464
+570	5215
+570	14114
+570	17521
+570	65068
+570	23167
+570	75102
+570	69102
+570	38768
+570	58308
+571	94956
+571	58909
+571	23508
+571	35812
+571	95706
+571	36494
+571	28164
+571	81723
+571	87785
+571	58730
+571	83079
+571	6221
+571	78451
+571	27559
+571	74493
+571	39150
+571	25968
+571	11976
+571	81599
+571	76435
+571	60982
+571	33399
+571	86560
+572	61069
+572	35462
+572	96976
+572	18602
+572	62964
+572	60585
+572	91993
+572	19610
+572	34305
+572	7458
+572	93057
+572	9384
+572	84606
+572	78371
+572	49703
+572	42763
+572	53274
+572	13960
+572	95343
+572	11773
+572	83758
+572	3553
+572	84502
+573	39837
+573	22573
+573	69986
+573	30264
+573	12298
+573	10691
+573	24905
+573	1302
+573	43002
+573	95451
+573	59141
+573	36793
+573	64407
+573	58512
+573	80017
+573	50711
+573	18928
+573	62839
+573	96889
+573	83450
+573	82188
+573	84073
+573	11758
+574	47418
+574	97105
+574	60142
+574	35887
+574	71404
+574	68361
+574	15733
+574	56274
+574	54415
+574	67881
+574	36065
+574	97813
+574	95092
+574	94074
+574	26193
+574	48464
+574	3895
+574	63984
+574	16470
+574	57858
+574	20435
+574	15991
+574	89067
+575	63450
+575	37018
+575	18316
+575	55571
+575	19507
+575	35338
+575	11345
+575	77951
+575	93835
+575	9681
+575	39388
+575	81462
+575	83621
+575	95101
+575	36548
+575	40766
+575	41132
+575	71609
+575	27240
+575	1247
+575	6087
+575	10126
+575	13952
+576	9049
+576	97958
+576	56033
+576	89089
+576	66124
+576	20162
+576	26515
+576	27970
+576	44771
+576	33435
+576	40014
+576	29138
+576	4204
+576	2184
+576	58097
+576	45842
+576	12565
+576	81118
+576	99247
+576	98819
+576	27178
+576	75216
+576	80652
+577	90789
+577	23779
+577	38788
+577	20638
+577	30706
+577	42847
+577	62542
+577	41187
+577	57382
+577	61922
+577	96810
+577	60046
+577	78748
+577	71247
+577	25548
+577	76594
+577	6258
+577	84864
+577	55143
+577	34666
+577	69367
+577	41857
+577	23605
+578	54578
+578	46773
+578	32017
+578	16125
+578	82432
+578	64050
+578	22001
+578	89699
+578	70239
+578	14916
+578	68484
+578	56864
+578	44380
+578	71185
+578	81978
+578	12977
+578	23859
+578	79996
+578	75169
+578	65933
+578	68800
+578	47772
+578	17184
+579	78023
+579	16505
+579	88232
+579	32680
+579	58658
+579	70499
+579	25269
+579	37178
+579	25113
+579	84273
+579	80216
+579	25439
+579	29896
+579	29496
+579	91637
+579	2802
+579	59795
+579	17418
+579	51855
+579	83353
+579	7343
+579	85891
+579	25793
+580	22236
+580	51292
+580	55953
+580	33581
+580	2903
+580	14034
+580	31008
+580	80703
+580	26735
+580	49416
+580	47343
+580	35550
+580	94445
+580	89389
+580	83704
+580	67555
+580	89652
+580	62883
+580	21343
+580	86989
+580	34581
+580	44980
+580	91740
+581	66845
+581	1019
+581	18051
+581	93187
+581	81939
+581	24113
+581	18193
+581	32999
+581	57962
+581	5768
+581	52873
+581	57799
+581	74959
+581	87532
+581	47069
+581	72963
+581	32663
+581	76996
+581	16488
+581	80618
+581	24941
+581	76650
+581	66224
+582	31788
+582	84771
+582	75658
+582	90878
+582	50809
+582	42768
+582	44627
+582	26643
+582	34571
+582	99210
+582	84768
+582	49873
+582	95935
+582	12315
+582	63894
+582	16222
+582	45582
+582	14314
+582	69786
+582	1320
+582	74836
+582	54839
+582	14621
+583	47320
+583	3702
+583	13594
+583	63236
+583	91488
+583	53833
+583	30342
+583	12051
+583	69967
+583	70845
+583	336
+583	85842
+583	83256
+583	96101
+583	79057
+583	8372
+583	4880
+583	77151
+583	52476
+583	94893
+583	82354
+583	21421
+583	76328
+584	51933
+584	61084
+584	54971
+584	33611
+584	76331
+584	44826
+584	69129
+584	393
+584	41881
+584	80895
+584	24335
+584	83018
+584	82057
+584	19118
+584	33543
+584	82898
+584	44115
+584	89867
+584	3449
+584	94989
+584	79424
+584	24097
+584	47156
+585	65033
+585	63064
+585	23374
+585	9501
+585	21975
+585	62439
+585	93238
+585	59598
+585	67645
+585	19149
+585	44672
+585	64606
+585	22604
+585	86360
+585	30731
+585	28304
+585	86061
+585	43499
+585	25251
+585	76647
+585	53773
+585	85488
+585	1517
+586	58533
+586	79740
+586	85744
+586	57821
+586	48596
+586	74073
+586	38110
+586	22963
+586	9212
+586	22811
+586	67898
+586	32235
+586	63803
+586	56682
+586	12306
+586	77652
+586	29295
+586	82215
+586	44649
+586	48031
+586	77852
+586	88386
+586	91984
+587	76817
+587	4980
+587	25596
+587	4543
+587	86688
+587	6994
+587	93076
+587	7522
+587	16255
+587	24104
+587	56744
+587	91493
+587	98441
+587	77204
+587	35487
+587	25443
+587	24424
+587	91406
+587	90678
+587	92690
+587	14478
+587	39315
+587	10240
+588	7569
+588	11369
+588	11968
+588	45038
+588	13569
+588	97934
+588	51606
+588	20364
+588	47455
+588	65355
+588	46109
+588	55720
+588	24675
+588	14454
+588	28995
+588	92858
+588	19745
+588	75054
+588	27801
+588	88898
+588	79237
+588	16808
+588	51920
+589	34923
+589	70687
+589	12406
+589	73479
+589	11539
+589	96637
+589	23175
+589	35864
+589	86842
+589	8264
+589	49393
+589	46735
+589	56762
+589	32041
+589	41848
+589	53137
+589	97215
+589	70854
+589	39704
+589	58271
+589	41156
+589	47230
+589	84114
+590	92234
+590	70737
+590	89115
+590	79226
+590	5213
+590	10289
+590	84365
+590	62805
+590	19703
+590	90837
+590	68406
+590	16202
+590	1567
+590	65568
+590	16259
+590	75163
+590	22924
+590	71200
+590	19347
+590	25615
+590	84258
+590	14224
+590	47065
+591	27779
+591	7053
+591	10056
+591	56701
+591	52228
+591	76573
+591	93553
+591	48545
+591	90086
+591	27729
+591	62190
+591	96469
+591	2921
+591	84995
+591	24130
+591	89508
+591	94354
+591	99138
+591	33464
+591	28884
+591	25946
+591	10653
+591	76903
+592	87745
+592	46356
+592	5007
+592	8487
+592	50085
+592	2347
+592	53921
+592	98000
+592	26203
+592	61491
+592	49535
+592	14339
+592	42972
+592	40231
+592	74376
+592	65800
+592	69603
+592	77946
+592	23511
+592	50304
+592	88523
+592	23564
+592	34799
+593	12946
+593	6125
+593	59472
+593	64276
+593	72568
+593	96028
+593	97292
+593	65433
+593	46428
+593	62104
+593	45187
+593	71623
+593	37034
+593	41858
+593	9273
+593	65982
+593	35525
+593	32811
+593	91711
+593	98384
+593	3657
+593	66473
+593	79931
+594	39788
+594	652
+594	35173
+594	91431
+594	27582
+594	29298
+594	37314
+594	73712
+594	19776
+594	14758
+594	42113
+594	36188
+594	79650
+594	40147
+594	92353
+594	56659
+594	10231
+594	3265
+594	49114
+594	71343
+594	28151
+594	81505
+594	13162
+594	10739
+594	23070
+594	84430
+595	10244
+595	59727
+595	9062
+595	88273
+595	24134
+595	34915
+595	35837
+595	97422
+595	20087
+595	82945
+595	61979
+595	30596
+595	95847
+595	51406
+595	91029
+595	51118
+595	64249
+595	11675
+595	89217
+595	68599
+595	5864
+595	34822
+595	82010
+595	53409
+595	67089
+595	27035
+596	9658
+596	70547
+596	75820
+596	61413
+596	64049
+596	53048
+596	48955
+596	47906
+596	72637
+596	72011
+596	6338
+596	10313
+596	88715
+596	84852
+596	22930
+596	74337
+596	95312
+596	21652
+596	73834
+596	81997
+596	56069
+596	61810
+596	13975
+596	70691
+596	29578
+596	56669
+597	21531
+597	40137
+597	32798
+597	76060
+597	2305
+597	97698
+597	5164
+597	74941
+597	68016
+597	87008
+597	83169
+597	66020
+597	9441
+597	55590
+597	77071
+597	26953
+597	74688
+597	92004
+597	37860
+597	92812
+597	6446
+597	42740
+597	89248
+597	14060
+597	15197
+597	70483
+598	22927
+598	32773
+598	93209
+598	74894
+598	36707
+598	27913
+598	68058
+598	38355
+598	39239
+598	53452
+598	51549
+598	20259
+598	6117
+598	63923
+598	29115
+598	70357
+598	80930
+598	34633
+598	47677
+598	39394
+598	59303
+598	62618
+598	67127
+598	2759
+598	55367
+598	25904
+599	94317
+599	12635
+599	55821
+599	31806
+599	89710
+599	65386
+599	28794
+599	32574
+599	58061
+599	35706
+599	96259
+599	83822
+599	3472
+599	72399
+599	85670
+599	61949
+599	1925
+599	46263
+599	46358
+599	48340
+599	27541
+599	42390
+599	809
+599	49915
+599	21099
+599	71727
+600	81392
+600	57150
+600	65777
+600	80986
+600	11767
+600	97912
+600	2556
+600	10740
+600	9889
+600	99590
+600	58669
+600	70812
+600	12179
+600	32622
+600	71100
+600	39281
+600	24978
+600	3616
+600	37984
+600	44957
+600	1994
+600	37189
+600	81142
+600	23993
+600	14872
+600	22631
+601	99988
+601	91350
+601	95766
+601	93884
+601	1196
+601	56297
+601	64353
+601	7670
+601	65182
+601	29491
+601	79215
+601	32870
+601	22160
+601	31643
+601	89948
+601	46461
+601	99461
+601	26942
+601	84190
+601	58420
+601	91294
+601	16484
+601	94815
+601	57417
+601	67668
+601	86466
+602	58755
+602	43705
+602	49454
+602	14988
+602	39995
+602	18923
+602	26593
+602	57615
+602	85579
+602	50104
+602	82313
+602	72592
+602	82877
+602	57782
+602	56182
+602	7304
+602	11588
+602	93781
+602	59609
+602	8442
+602	29053
+602	35930
+602	98199
+602	76468
+602	70516
+602	92135
+603	56347
+603	96347
+603	29713
+603	22286
+603	75628
+603	49934
+603	52697
+603	13321
+603	16576
+603	34543
+603	44851
+603	39347
+603	75912
+603	6545
+603	11495
+603	78091
+603	62543
+603	4237
+603	13973
+603	56839
+603	28364
+603	94877
+603	82216
+603	69217
+603	73694
+603	2839
+604	70618
+604	74071
+604	36400
+604	84787
+604	92628
+604	2465
+604	21153
+604	8169
+604	58924
+604	21553
+604	59837
+604	25937
+604	89070
+604	43567
+604	31219
+604	76287
+604	76842
+604	5318
+604	90012
+604	10501
+604	50034
+604	15674
+604	62368
+604	22844
+604	95181
+604	46540
+605	30711
+605	60652
+605	91324
+605	42326
+605	78484
+605	32431
+605	90908
+605	54517
+605	89750
+605	64077
+605	97778
+605	92987
+605	23304
+605	57401
+605	465
+605	69594
+605	7089
+605	3945
+605	35408
+605	6614
+605	84424
+605	9867
+605	81466
+605	86920
+605	80996
+605	13613
+606	19408
+606	51201
+606	20804
+606	36126
+606	11933
+606	30316
+606	77743
+606	79409
+606	46246
+606	75989
+606	63673
+606	81947
+606	28154
+606	47182
+606	48737
+606	89863
+606	50679
+606	18188
+606	39464
+606	63385
+606	8896
+606	3367
+606	71859
+606	5901
+606	69200
+606	4137
+607	51990
+607	12913
+607	8359
+607	50142
+607	7875
+607	70145
+607	62854
+607	92252
+607	31765
+607	1945
+607	72363
+607	16148
+607	13639
+607	28517
+607	9991
+607	36638
+607	94579
+607	82956
+607	53967
+607	23821
+607	21820
+607	33325
+607	59808
+607	20467
+607	14179
+607	36105
+608	20998
+608	84382
+608	75785
+608	97838
+608	74098
+608	95374
+608	98775
+608	29864
+608	85860
+608	53957
+608	24531
+608	17784
+608	74612
+608	87786
+608	98747
+608	4541
+608	45653
+608	68842
+608	15905
+608	9113
+608	42215
+608	80505
+608	47137
+608	28492
+608	62858
+609	53272
+609	45981
+609	77382
+609	35225
+609	26303
+609	53282
+609	99817
+609	58907
+609	22633
+609	5559
+609	39942
+609	66906
+609	75751
+609	86909
+609	62952
+609	68429
+609	82447
+609	46913
+609	56398
+609	44328
+609	57586
+609	89321
+609	77827
+609	64056
+609	30206
+609	41902
+610	94928
+610	38529
+610	36212
+610	26546
+610	9877
+610	96510
+610	26412
+610	19618
+610	57865
+610	64182
+610	51689
+610	96662
+610	80826
+610	64299
+610	21208
+610	42911
+610	95198
+610	40312
+610	24062
+610	49482
+610	81433
+610	24705
+610	80088
+610	49806
+610	73491
+610	9058
+611	50688
+611	45288
+611	9614
+611	71023
+611	47490
+611	26068
+611	70715
+611	40619
+611	90423
+611	94093
+611	5265
+611	15566
+611	87409
+611	48295
+611	23330
+611	21052
+611	59033
+611	14026
+611	42517
+611	52013
+611	5216
+611	88869
+611	80656
+611	597
+611	91543
+611	86644
+612	18921
+612	74111
+612	73572
+612	56029
+612	64438
+612	70280
+612	44799
+612	28911
+612	64551
+612	27540
+612	10326
+612	57903
+612	15282
+612	42078
+612	55965
+612	78630
+612	39861
+612	57087
+612	95036
+612	35705
+612	17688
+612	97615
+612	82000
+612	95763
+612	34458
+612	70227
+613	31606
+613	17099
+613	61813
+613	76995
+613	10172
+613	14593
+613	12381
+613	44699
+613	549
+613	45449
+613	64261
+613	17943
+613	83610
+613	44780
+613	29046
+613	85630
+613	31085
+613	42160
+613	65512
+613	32165
+613	40498
+613	90913
+613	11013
+613	23437
+613	42168
+613	2071
+614	72028
+614	41603
+614	81972
+614	10712
+614	67578
+614	46583
+614	70442
+614	39584
+614	33280
+614	34205
+614	17931
+614	85204
+614	98929
+614	44689
+614	27349
+614	89266
+614	31133
+614	22983
+614	87003
+614	16736
+614	5304
+614	54827
+614	57759
+614	5289
+614	78787
+614	41647
+615	70879
+615	52
+615	1258
+615	90689
+615	42663
+615	97800
+615	57100
+615	51678
+615	17048
+615	38732
+615	47319
+615	95754
+615	32949
+615	33804
+615	15161
+615	12810
+615	1077
+615	54495
+615	1930
+615	43921
+615	75618
+615	28811
+615	63532
+615	93316
+615	22110
+615	26637
+616	6659
+616	6789
+616	20388
+616	12335
+616	87284
+616	94422
+616	93688
+616	20216
+616	89845
+616	70583
+616	37308
+616	8125
+616	45457
+616	99177
+616	45413
+616	87569
+616	93173
+616	76864
+616	84563
+616	45581
+616	85438
+616	67035
+616	91268
+616	10907
+616	40487
+616	6750
+617	99821
+617	11718
+617	47321
+617	90626
+617	40621
+617	96697
+617	86937
+617	55140
+617	33622
+617	66635
+617	61416
+617	86095
+617	33958
+617	54506
+617	9292
+617	45399
+617	76835
+617	37935
+617	27280
+617	88928
+617	55298
+617	77769
+617	53694
+617	92891
+617	37001
+617	45280
+618	72770
+618	98435
+618	55665
+618	57535
+618	30283
+618	89598
+618	79900
+618	24610
+618	85696
+618	33390
+618	62033
+618	35773
+618	19069
+618	58363
+618	70515
+618	78056
+618	80738
+618	63293
+618	9530
+618	27744
+618	79754
+618	54211
+618	24245
+618	67641
+618	82143
+618	89573
+619	42523
+619	88529
+619	82889
+619	14360
+619	64292
+619	67516
+619	77335
+619	32599
+619	87169
+619	93920
+619	58692
+619	49090
+619	61172
+619	91889
+619	7233
+619	92710
+619	10357
+619	87514
+619	7259
+619	57511
+619	4157
+619	88360
+619	66969
+619	5917
+619	94500
+619	97485
+620	92513
+620	60716
+620	37420
+620	16333
+620	28010
+620	86871
+620	29274
+620	37294
+620	88433
+620	9400
+620	31301
+620	68218
+620	33433
+620	49008
+620	87958
+620	62341
+620	46898
+620	1416
+620	30405
+620	71071
+620	40007
+620	81427
+620	94271
+620	99025
+620	33854
+620	24897
+621	63312
+621	29932
+621	38927
+621	19193
+621	23925
+621	83560
+621	19075
+621	68060
+621	7180
+621	77224
+621	20482
+621	75926
+621	43367
+621	32222
+621	11878
+621	71875
+621	85823
+621	56868
+621	85577
+621	244
+621	6076
+621	25131
+621	39460
+621	38800
+621	25593
+621	17496
+622	25989
+622	22128
+622	73455
+622	81706
+622	68161
+622	11879
+622	25741
+622	48887
+622	11346
+622	42223
+622	21865
+622	38981
+622	90867
+622	29063
+622	42575
+622	32803
+622	47815
+622	9569
+622	82056
+622	49094
+622	27079
+622	82657
+622	69793
+622	64924
+622	45680
+622	57303
+623	48903
+623	89452
+623	57029
+623	14151
+623	70867
+623	59571
+623	85878
+623	68952
+623	34132
+623	11737
+623	3484
+623	1792
+623	26367
+623	74007
+623	75522
+623	77402
+623	35320
+623	48265
+623	68131
+623	25925
+623	30252
+623	95273
+623	86410
+623	94647
+623	38940
+623	80838
+624	10014
+624	65659
+624	78440
+624	89869
+624	46785
+624	58791
+624	86878
+624	95062
+624	30486
+624	62594
+624	18885
+624	19914
+624	78932
+624	47386
+624	5174
+624	90796
+624	18564
+624	70671
+624	20051
+624	68430
+624	59138
+624	74058
+624	232
+624	24667
+624	94091
+624	55597
+625	46457
+625	92343
+625	87190
+625	41198
+625	74888
+625	38105
+625	92761
+625	94779
+625	57098
+625	86951
+625	63927
+625	31718
+625	10657
+625	56503
+625	50398
+625	69082
+625	34567
+625	56664
+625	37173
+625	74707
+625	92482
+625	20564
+625	24982
+625	2030
+625	7137
+625	84269
 \.
 
 
@@ -11183,6 +25651,643 @@ COPY public.scorefinal (match_id, pointequipea, pointequipeb) FROM stdin;
 --
 
 COPY public.stafftechnique (id_staff, roleequipe, prenomstaff, nomstaff, journ, moisn, anneen, id_equipe) FROM stdin;
+1	selectionneur	Francisco	Bru	\N	\N	\N	9
+2	selectionneur	Raoul	Caudron	\N	\N	\N	6
+3	selectionneur	Píndaro	de Carvalho Rodrigues	\N	\N	\N	4
+4	selectionneur	José	Durand Laguna	\N	\N	\N	8
+5	selectionneur	Hector	Goetinck	\N	\N	\N	2
+6	selectionneur	Juan	Luque de Serrallonga	\N	\N	\N	7
+7	selectionneur	Robert	Millar	\N	\N	\N	11
+8	selectionneur	Francisco	Olazar	\N	\N	\N	1
+9	selectionneur	György	Orth	\N	\N	\N	5
+10	selectionneur	Costel	Rădulescu	\N	\N	\N	10
+11	selectionneur	Ulises	Saucedo	\N	\N	\N	3
+12	selectionneur	Boško	Simonović	\N	\N	\N	13
+13	selectionneur	Alberto	Suppici	\N	\N	\N	12
+14	selectionneur	Juan José	Tramutola	\N	\N	\N	1
+15	selectionneur	Amadeo	García	\N	\N	\N	26
+16	selectionneur	Bob	Glendenning	\N	\N	\N	24
+17	selectionneur	Hector	Goetinck	\N	\N	\N	16
+18	selectionneur	David	Gould	\N	\N	\N	29
+19	selectionneur	George	Kimpton	\N	\N	\N	20
+20	selectionneur	James	McCrae	\N	\N	\N	19
+21	selectionneur	Hugo	Meisl	\N	\N	\N	15
+22	selectionneur	Heinrich	Müller	\N	\N	\N	28
+23	selectionneur	Ödön	Nádas	\N	\N	\N	22
+24	selectionneur	Otto	Nerz	\N	\N	\N	21
+25	selectionneur	Felipe	Pascucci	\N	\N	\N	14
+26	selectionneur	Karel	Petrů	\N	\N	\N	18
+27	selectionneur	John	Pettersson	\N	\N	\N	27
+28	selectionneur	Vittorio	Pozzo	\N	\N	\N	23
+29	selectionneur	Costel	Rădulescu	\N	\N	\N	25
+30	selectionneur	Josef	Uridil	\N	\N	\N	25
+31	selectionneur	Luiz	Vinhaes	\N	\N	\N	17
+32	selectionneur	Gaston	Barreau	\N	\N	\N	35
+33	selectionneur	Jack	Butler	\N	\N	\N	30
+34	selectionneur	Károly	Dietz	\N	\N	\N	37
+35	selectionneur	Bob	Glendenning	\N	\N	\N	39
+36	selectionneur	Asbjørn	Halvorsen	\N	\N	\N	40
+37	selectionneur	Sepp	Herberger	\N	\N	\N	36
+38	selectionneur	Józef	Kałuża	\N	\N	\N	41
+39	selectionneur	Johan	Mastenbroek	\N	\N	\N	34
+40	selectionneur	Josef	Meissner	\N	\N	\N	33
+41	selectionneur	József	Nagy	\N	\N	\N	43
+42	selectionneur	Adhemar	Pimenta	\N	\N	\N	31
+43	selectionneur	Vittorio	Pozzo	\N	\N	\N	38
+44	selectionneur	Costel	Rădulescu	\N	\N	\N	42
+45	selectionneur	Karl	Rappan	\N	\N	\N	44
+46	selectionneur	Alexandru	Săvulescu	\N	\N	\N	42
+47	selectionneur	Alfréd	Schaffer	\N	\N	\N	37
+48	selectionneur	José	Tapia	\N	\N	\N	32
+49	selectionneur	Franco	Andreoli	\N	\N	\N	54
+50	selectionneur	Milorad	Arsenijević	\N	\N	\N	57
+51	selectionneur	Alberto	Buccicardi	\N	\N	\N	47
+52	selectionneur	Flávio	Costa	\N	\N	\N	46
+53	selectionneur	Guillermo	Eizaguirre	\N	\N	\N	52
+54	selectionneur	Manuel	Fleitas Solich	\N	\N	\N	51
+55	selectionneur	William	Jeffrey	\N	\N	\N	55
+56	selectionneur	Juan	López	\N	\N	\N	56
+57	selectionneur	Ferruccio	Novo	\N	\N	\N	49
+58	selectionneur	Mario	Pretto	\N	\N	\N	45
+59	selectionneur	George	Raynor	\N	\N	\N	53
+60	selectionneur	Octavio	Vial	\N	\N	\N	50
+61	selectionneur	Walter	Winterbottom	\N	\N	\N	48
+62	selectionneur	Andy	Beattie	\N	\N	\N	67
+63	selectionneur	Karol	Borhy	\N	\N	\N	61
+64	selectionneur	Lajos	Czeizler	\N	\N	\N	65
+65	selectionneur	Sepp	Herberger	\N	\N	\N	72
+66	selectionneur	Yong-sik	Kim	\N	\N	\N	68
+67	selectionneur	Doug	Livingstone	\N	\N	\N	59
+68	selectionneur	Juan	López	\N	\N	\N	71
+69	selectionneur	Antonio	López Herranz	\N	\N	\N	66
+70	selectionneur	Zezé	Moreira	\N	\N	\N	60
+71	selectionneur	Walter	Nausch	\N	\N	\N	58
+72	selectionneur	Pierre	Pibarot	\N	\N	\N	63
+73	selectionneur	Sandro	Puppo	\N	\N	\N	70
+74	selectionneur	Karl	Rappan	\N	\N	\N	69
+75	selectionneur	Gusztáv	Sebes	\N	\N	\N	64
+76	selectionneur	Aleksandar	Tirnanić	\N	\N	\N	73
+77	selectionneur	Walter	Winterbottom	\N	\N	\N	62
+78	selectionneur	Karl	Argauer	\N	\N	\N	75
+79	selectionneur	Lajos	Baróti	\N	\N	\N	80
+80	selectionneur	Albert	Batteux	\N	\N	\N	79
+81	selectionneur	Matt	Busby	\N	\N	\N	84
+82	selectionneur	Peter	Doherty	\N	\N	\N	82
+83	selectionneur	Vicente	Feola	\N	\N	\N	76
+84	selectionneur	Aurelio	González	\N	\N	\N	83
+85	selectionneur	Sepp	Herberger	\N	\N	\N	88
+86	selectionneur	Gavriil	Kachalin	\N	\N	\N	85
+87	selectionneur	Karel	Kolský	\N	\N	\N	77
+88	selectionneur	Antonio	López Herranz	\N	\N	\N	81
+89	selectionneur	Jimmy	Murphy	\N	\N	\N	87
+90	selectionneur	George	Raynor	\N	\N	\N	86
+91	selectionneur	Guillermo	Stábile	\N	\N	\N	74
+92	selectionneur	Aleksandar	Tirnanić	\N	\N	\N	89
+93	selectionneur	Dawson	Walker	\N	\N	\N	84
+94	selectionneur	Walter	Winterbottom	\N	\N	\N	78
+95	selectionneur	Lajos	Baróti	\N	\N	\N	97
+96	selectionneur	Juan Carlos	Corazzo	\N	\N	\N	103
+97	selectionneur	Giovanni	Ferrari	\N	\N	\N	98
+98	selectionneur	Sepp	Herberger	\N	\N	\N	104
+99	selectionneur	Helenio	Herrera	\N	\N	\N	101
+100	selectionneur	Gavriil	Kachalin	\N	\N	\N	100
+101	selectionneur	Juan Carlos	Lorenzo	\N	\N	\N	90
+102	selectionneur	Ljubomir	Lovrić	\N	\N	\N	105
+103	selectionneur	Paolo	Mazza	\N	\N	\N	98
+104	selectionneur	Prvoslav	Mihajlović	\N	\N	\N	105
+105	selectionneur	Aymoré	Moreira	\N	\N	\N	91
+106	selectionneur	Georgi	Pachedzhiev	\N	\N	\N	92
+107	selectionneur	Adolfo	Pedernera	\N	\N	\N	94
+108	selectionneur	Karl	Rappan	\N	\N	\N	102
+109	selectionneur	Fernando	Riera	\N	\N	\N	93
+110	selectionneur	Ignacio	Tréllez	\N	\N	\N	99
+111	selectionneur	Rudolf	Vytlačil	\N	\N	\N	95
+112	selectionneur	Walter	Winterbottom	\N	\N	\N	96
+113	selectionneur	Luis	Álamos	\N	\N	\N	109
+114	selectionneur	Lajos	Baróti	\N	\N	\N	112
+115	selectionneur	Edmondo	Fabbri	\N	\N	\N	113
+116	selectionneur	Vicente	Feola	\N	\N	\N	107
+117	selectionneur	Alfredo	Foni	\N	\N	\N	119
+118	selectionneur	Otto	Glória	\N	\N	\N	116
+119	selectionneur	Henri	Guérin	\N	\N	\N	111
+120	selectionneur	Juan Carlos	Lorenzo	\N	\N	\N	106
+121	selectionneur	Nikolai	Morozov	\N	\N	\N	117
+122	selectionneur	Rye-hyun	Myung	\N	\N	\N	115
+123	selectionneur	Alf	Ramsey	\N	\N	\N	110
+124	selectionneur	Helmut	Schön	\N	\N	\N	121
+125	selectionneur	Ignacio	Tréllez	\N	\N	\N	114
+126	selectionneur	Ondino	Viera	\N	\N	\N	120
+127	selectionneur	José	Villalonga	\N	\N	\N	118
+128	selectionneur	Rudolf	Vytlačil	\N	\N	\N	108
+129	selectionneur	Orvar	Bergmark	\N	\N	\N	135
+130	selectionneur	Stefan	Bozhkov	\N	\N	\N	124
+131	selectionneur	Raúl	Cárdenas	\N	\N	\N	130
+132	selectionneur	Hernán	Carrasco	\N	\N	\N	126
+133	selectionneur	not applicable	Didi	\N	\N	\N	132
+134	selectionneur	Raymond	Goethals	\N	\N	\N	122
+135	selectionneur	Juan	Hohberg	\N	\N	\N	136
+136	selectionneur	Gavriil	Kachalin	\N	\N	\N	134
+137	selectionneur	Jozef	Marko	\N	\N	\N	125
+138	selectionneur	Angelo	Niculescu	\N	\N	\N	133
+139	selectionneur	Alf	Ramsey	\N	\N	\N	127
+140	selectionneur	Emmanuel	Scheffer	\N	\N	\N	128
+141	selectionneur	Helmut	Schön	\N	\N	\N	137
+142	selectionneur	Ferruccio	Valcareggi	\N	\N	\N	129
+143	selectionneur	Blagoje	Vidinić	\N	\N	\N	131
+144	selectionneur	Mário	Zagallo	\N	\N	\N	123
+145	selectionneur	Luis	Álamos	\N	\N	\N	142
+146	selectionneur	Georg	Buschner	\N	\N	\N	143
+147	selectionneur	Vladislao	Cap	\N	\N	\N	138
+148	selectionneur	Georg	Ericson	\N	\N	\N	149
+149	selectionneur	Kazimierz	Górski	\N	\N	\N	147
+150	selectionneur	Rinus	Michels	\N	\N	\N	146
+151	selectionneur	Miljan	Miljanić	\N	\N	\N	152
+152	selectionneur	Hristo	Mladenov	\N	\N	\N	141
+153	selectionneur	Willie	Ormond	\N	\N	\N	148
+154	selectionneur	Roberto	Porta	\N	\N	\N	150
+155	selectionneur	Rale	Rasic	\N	\N	\N	139
+156	selectionneur	Helmut	Schön	\N	\N	\N	151
+157	selectionneur	Antoine	Tassy	\N	\N	\N	144
+158	selectionneur	Ferruccio	Valcareggi	\N	\N	\N	145
+159	selectionneur	Blagoje	Vidinić	\N	\N	\N	153
+160	selectionneur	Mário	Zagallo	\N	\N	\N	140
+161	selectionneur	Lajos	Baróti	\N	\N	\N	158
+162	selectionneur	Enzo	Bearzot	\N	\N	\N	160
+163	selectionneur	Marcos	Calderón	\N	\N	\N	163
+164	selectionneur	Abdelmajid	Chetali	\N	\N	\N	168
+165	selectionneur	Cláudio	Coutinho	\N	\N	\N	156
+166	selectionneur	Georg	Ericson	\N	\N	\N	167
+167	selectionneur	Jacek	Gmoch	\N	\N	\N	164
+168	selectionneur	Ernst	Happel	\N	\N	\N	162
+169	selectionneur	Michel	Hidalgo	\N	\N	\N	157
+170	selectionneur	Ladislao	Kubala	\N	\N	\N	166
+171	selectionneur	Ally	MacLeod	\N	\N	\N	165
+172	selectionneur	César Luis	Menotti	\N	\N	\N	154
+173	selectionneur	Heshmat	Mohajerani	\N	\N	\N	159
+174	selectionneur	José Antonio	Roca	\N	\N	\N	161
+175	selectionneur	Helmut	Schön	\N	\N	\N	169
+176	selectionneur	Helmut	Senekowitsch	\N	\N	\N	155
+177	selectionneur	John	Adshead	\N	\N	\N	185
+178	selectionneur	Enzo	Bearzot	\N	\N	\N	183
+179	selectionneur	Konstantin	Beskov	\N	\N	\N	190
+180	selectionneur	Billy	Bingham	\N	\N	\N	186
+181	selectionneur	José	de la Paz Herrera	\N	\N	\N	181
+182	selectionneur	Jupp	Derwall	\N	\N	\N	192
+183	selectionneur	Ron	Greenwood	\N	\N	\N	179
+184	selectionneur	Michel	Hidalgo	\N	\N	\N	180
+185	selectionneur	Mahieddine	Khalef	\N	\N	\N	170
+186	selectionneur	Felix	Latzke	\N	\N	\N	172
+187	selectionneur	Rachid	Mekhloufi	\N	\N	\N	170
+188	selectionneur	César Luis	Menotti	\N	\N	\N	171
+189	selectionneur	Kálmán	Mészöly	\N	\N	\N	182
+190	selectionneur	Miljan	Miljanić	\N	\N	\N	193
+191	selectionneur	Carlos Alberto	Parreira	\N	\N	\N	184
+192	selectionneur	Antoni	Piechniczek	\N	\N	\N	188
+193	selectionneur	Mauricio	Rodríguez	\N	\N	\N	178
+194	selectionneur	José	Santamaría	\N	\N	\N	191
+195	selectionneur	Telê	Santana	\N	\N	\N	174
+196	selectionneur	Luis	Santibáñez	\N	\N	\N	176
+197	selectionneur	Georg	Schmidt	\N	\N	\N	172
+198	selectionneur	Jock	Stein	\N	\N	\N	189
+199	selectionneur	Guy	Thys	\N	\N	\N	173
+200	selectionneur	not applicable	Tim	\N	\N	\N	187
+201	selectionneur	Jozef	Vengloš	\N	\N	\N	177
+202	selectionneur	Jean	Vincent	\N	\N	\N	175
+203	selectionneur	Enzo	Bearzot	\N	\N	\N	205
+204	selectionneur	Franz	Beckenbauer	\N	\N	\N	217
+205	selectionneur	Carlos	Bilardo	\N	\N	\N	195
+206	selectionneur	Billy	Bingham	\N	\N	\N	208
+207	selectionneur	Omar	Borrás	\N	\N	\N	216
+208	selectionneur	Evaristo	de Macedo	\N	\N	\N	204
+209	selectionneur	José	Faria	\N	\N	\N	207
+210	selectionneur	Alex	Ferguson	\N	\N	\N	212
+211	selectionneur	Jung-nam	Kim	\N	\N	\N	213
+212	selectionneur	Valeri	Lobanovsky	\N	\N	\N	214
+213	selectionneur	György	Mezey	\N	\N	\N	203
+214	selectionneur	Henri	Michel	\N	\N	\N	202
+215	selectionneur	Bora	Milutinović	\N	\N	\N	206
+216	selectionneur	Miguel	Muñoz	\N	\N	\N	215
+217	selectionneur	Antoni	Piechniczek	\N	\N	\N	210
+218	selectionneur	Sepp	Piontek	\N	\N	\N	200
+219	selectionneur	Cayetano	Ré	\N	\N	\N	209
+220	selectionneur	Bobby	Robson	\N	\N	\N	201
+221	selectionneur	Rabah	Saâdane	\N	\N	\N	194
+222	selectionneur	Telê	Santana	\N	\N	\N	197
+223	selectionneur	Guy	Thys	\N	\N	\N	196
+224	selectionneur	José	Torres	\N	\N	\N	211
+225	selectionneur	Ivan	Vutsov	\N	\N	\N	198
+226	selectionneur	Tony	Waiters	\N	\N	\N	199
+227	selectionneur	Mahmoud	Al-Gohari	\N	\N	\N	226
+228	selectionneur	Franz	Beckenbauer	\N	\N	\N	240
+229	selectionneur	Leo	Beenhakker	\N	\N	\N	229
+230	selectionneur	Carlos	Bilardo	\N	\N	\N	218
+231	selectionneur	Jack	Charlton	\N	\N	\N	230
+232	selectionneur	Bob	Gansler	\N	\N	\N	238
+233	selectionneur	Josef	Hickersberger	\N	\N	\N	219
+234	selectionneur	Emerich	Jenei	\N	\N	\N	231
+235	selectionneur	Sebastião	Lazaroni	\N	\N	\N	221
+236	selectionneur	Hoe-taik	Lee	\N	\N	\N	233
+237	selectionneur	Valeriy	Lobanovskyi	\N	\N	\N	234
+238	selectionneur	Francisco	Maturana	\N	\N	\N	223
+239	selectionneur	Bora	Milutinović	\N	\N	\N	224
+240	selectionneur	Valery	Nepomnyashchy	\N	\N	\N	222
+241	selectionneur	Olle	Nordin	\N	\N	\N	236
+242	selectionneur	Ivica	Osim	\N	\N	\N	241
+243	selectionneur	Carlos Alberto	Parreira	\N	\N	\N	237
+244	selectionneur	Bobby	Robson	\N	\N	\N	227
+245	selectionneur	Andy	Roxburgh	\N	\N	\N	232
+246	selectionneur	Luis	Suárez	\N	\N	\N	235
+247	selectionneur	Óscar	Tabárez	\N	\N	\N	239
+248	selectionneur	Guy	Thys	\N	\N	\N	220
+249	selectionneur	Jozef	Vengloš	\N	\N	\N	225
+250	selectionneur	Azeglio	Vicini	\N	\N	\N	228
+251	selectionneur	Gero	Bisanz	\N	\N	\N	246
+252	selectionneur	Dave	Boardman	\N	\N	\N	249
+253	selectionneur	Jo	Bonfrère	\N	\N	\N	250
+254	selectionneur	Tsu-pin	Chong	\N	\N	\N	244
+255	selectionneur	Anson	Dorrance	\N	\N	\N	253
+256	selectionneur	Keld	Gantzhorn	\N	\N	\N	245
+257	selectionneur	Sergio	Guenza	\N	\N	\N	247
+258	selectionneur	Gunilla	Paijkull	\N	\N	\N	252
+259	selectionneur	Even	Pellerud	\N	\N	\N	251
+260	selectionneur	Fernando	Pires	\N	\N	\N	242
+261	selectionneur	Ruihua	Shang	\N	\N	\N	243
+262	selectionneur	Tamotsu	Suzuki	\N	\N	\N	248
+263	selectionneur	Dick	Advocaat	\N	\N	\N	266
+264	selectionneur	Xabier	Azkargorta	\N	\N	\N	256
+265	selectionneur	Alfio	Basile	\N	\N	\N	254
+266	selectionneur	Abdellah	Blinda	\N	\N	\N	265
+267	selectionneur	Jack	Charlton	\N	\N	\N	269
+268	selectionneur	Javier	Clemente	\N	\N	\N	274
+269	selectionneur	Roy	Hodgson	\N	\N	\N	276
+270	selectionneur	Anghel	Iordănescu	\N	\N	\N	270
+271	selectionneur	Ho	Kim	\N	\N	\N	273
+272	selectionneur	Francisco	Maturana	\N	\N	\N	260
+273	selectionneur	Miguel	Mejía Barón	\N	\N	\N	264
+274	selectionneur	Henri	Michel	\N	\N	\N	259
+275	selectionneur	Bora	Milutinović	\N	\N	\N	277
+276	selectionneur	Egil	Olsen	\N	\N	\N	268
+277	selectionneur	Alketas	Panagoulias	\N	\N	\N	262
+278	selectionneur	Carlos Alberto	Parreira	\N	\N	\N	257
+279	selectionneur	Dimitar	Penev	\N	\N	\N	258
+280	selectionneur	Arrigo	Sacchi	\N	\N	\N	263
+281	selectionneur	Pavel	Sadyrin	\N	\N	\N	271
+282	selectionneur	Jorge	Solari	\N	\N	\N	272
+283	selectionneur	Tommy	Svensson	\N	\N	\N	275
+284	selectionneur	Paul	Van Himst	\N	\N	\N	255
+285	selectionneur	Berti	Vogts	\N	\N	\N	261
+286	selectionneur	Clemens	Westerhof	\N	\N	\N	267
+287	selectionneur	Sylvie	Béliveau	\N	\N	\N	280
+288	selectionneur	Gero	Bisanz	\N	\N	\N	284
+289	selectionneur	Ted	Copeland	\N	\N	\N	283
+290	selectionneur	Tony	DiCicco	\N	\N	\N	289
+291	selectionneur	Ademar	Fonseca	\N	\N	\N	279
+292	selectionneur	Keld	Gantzhorn	\N	\N	\N	282
+293	selectionneur	Paul	Hamilton	\N	\N	\N	286
+294	selectionneur	Yuanan	Ma	\N	\N	\N	281
+295	selectionneur	Even	Pellerud	\N	\N	\N	287
+296	selectionneur	Tom	Sermanni	\N	\N	\N	278
+297	selectionneur	Bengt	Simonsson	\N	\N	\N	288
+298	selectionneur	Tamotsu	Suzuki	\N	\N	\N	285
+299	selectionneur	Nelson	Acosta	\N	\N	\N	296
+300	selectionneur	Mohammed	Al-Kharashy	\N	\N	\N	314
+301	selectionneur	Miroslav	Blažević	\N	\N	\N	298
+302	selectionneur	Hristo	Bonev	\N	\N	\N	294
+303	selectionneur	Craig	Brown	\N	\N	\N	315
+304	selectionneur	Paulo César	Carpegiani	\N	\N	\N	312
+305	selectionneur	Bum-kun	Cha	\N	\N	\N	317
+306	selectionneur	Javier	Clemente	\N	\N	\N	318
+307	selectionneur	Hernán Darío	Gómez	\N	\N	\N	297
+308	selectionneur	Guus	Hiddink	\N	\N	\N	309
+309	selectionneur	Glenn	Hoddle	\N	\N	\N	300
+310	selectionneur	Anghel	Iordănescu	\N	\N	\N	313
+311	selectionneur	Aimé	Jacquet	\N	\N	\N	301
+312	selectionneur	Bo	Johansson	\N	\N	\N	299
+313	selectionneur	Henryk	Kasperczak	\N	\N	\N	319
+314	selectionneur	Manuel	Lapuente	\N	\N	\N	307
+315	selectionneur	Claude	Le Roy	\N	\N	\N	295
+316	selectionneur	Georges	Leekens	\N	\N	\N	292
+317	selectionneur	Cesare	Maldini	\N	\N	\N	304
+318	selectionneur	Henri	Michel	\N	\N	\N	308
+319	selectionneur	Bora	Milutinović	\N	\N	\N	310
+320	selectionneur	Takeshi	Okada	\N	\N	\N	306
+321	selectionneur	Egil	Olsen	\N	\N	\N	311
+322	selectionneur	Carlos Alberto	Parreira	\N	\N	\N	314
+323	selectionneur	Daniel	Passarella	\N	\N	\N	290
+324	selectionneur	Herbert	Prohaska	\N	\N	\N	291
+325	selectionneur	Steve	Sampson	\N	\N	\N	320
+326	selectionneur	Slobodan	Santrač	\N	\N	\N	321
+327	selectionneur	Ali	Selmi	\N	\N	\N	319
+328	selectionneur	Renê	Simões	\N	\N	\N	305
+329	selectionneur	Jalal	Talebi	\N	\N	\N	303
+330	selectionneur	Philippe	Troussier	\N	\N	\N	316
+331	selectionneur	Berti	Vogts	\N	\N	\N	302
+332	selectionneur	Mário	Zagallo	\N	\N	\N	293
+333	selectionneur	Emmanual Kwasi	Afranie	\N	\N	\N	328
+334	selectionneur	Greg	Brown	\N	\N	\N	322
+335	selectionneur	Yuri	Bystritsky	\N	\N	\N	335
+336	selectionneur	Leonardo	Cuéllar	\N	\N	\N	331
+337	selectionneur	Tony	DiCicco	\N	\N	\N	337
+338	selectionneur	Marika	Domanski-Lyfors	\N	\N	\N	336
+339	selectionneur	Carlo	Facchin	\N	\N	\N	329
+340	selectionneur	Per-Mathias	Høgmo	\N	\N	\N	334
+341	selectionneur	Jørgen	Hvidemose	\N	\N	\N	326
+342	selectionneur	Mabo	Ismaila	\N	\N	\N	332
+343	selectionneur	Yuanan	Ma	\N	\N	\N	325
+344	selectionneur	Satoshi	Miyauchi	\N	\N	\N	330
+345	selectionneur	Dong-chan	Myong	\N	\N	\N	333
+346	selectionneur	Tina	Theune-Meyer	\N	\N	\N	327
+347	selectionneur	Neil	Turnbull	\N	\N	\N	324
+348	selectionneur	not applicable	Wilsinho	\N	\N	\N	323
+349	selectionneur	Javier	Aguirre	\N	\N	\N	352
+350	selectionneur	Nasser	Al-Johar	\N	\N	\N	359
+351	selectionneur	Bruce	Arena	\N	\N	\N	368
+352	selectionneur	Marcelo	Bielsa	\N	\N	\N	338
+353	selectionneur	José Antonio	Camacho	\N	\N	\N	364
+354	selectionneur	Jerzy	Engel	\N	\N	\N	355
+355	selectionneur	Sven-Göran	Eriksson	\N	\N	\N	347
+356	selectionneur	Hernán Darío	Gómez	\N	\N	\N	346
+357	selectionneur	Alexandre	Guimarães	\N	\N	\N	343
+358	selectionneur	Şenol	Güneş	\N	\N	\N	367
+359	selectionneur	Guus	Hiddink	\N	\N	\N	363
+360	selectionneur	Mirko	Jozić	\N	\N	\N	344
+361	selectionneur	Srečko	Katanec	\N	\N	\N	361
+362	selectionneur	Lars	Lagerbäck	\N	\N	\N	365
+363	selectionneur	Roger	Lemerre	\N	\N	\N	348
+364	selectionneur	Cesare	Maldini	\N	\N	\N	354
+365	selectionneur	Mick	McCarthy	\N	\N	\N	357
+366	selectionneur	Bruno	Metsu	\N	\N	\N	360
+367	selectionneur	Bora	Milutinović	\N	\N	\N	342
+368	selectionneur	António	Oliveira	\N	\N	\N	356
+369	selectionneur	Morten	Olsen	\N	\N	\N	345
+370	selectionneur	Festus	Onigbinde	\N	\N	\N	353
+371	selectionneur	Víctor	Púa	\N	\N	\N	369
+372	selectionneur	Oleg	Romantsev	\N	\N	\N	358
+373	selectionneur	Winfried	Schäfer	\N	\N	\N	341
+374	selectionneur	Luiz Felipe	Scolari	\N	\N	\N	340
+375	selectionneur	Tommy	Söderberg	\N	\N	\N	365
+376	selectionneur	Jomo	Sono	\N	\N	\N	362
+377	selectionneur	Ammar	Souayah	\N	\N	\N	366
+378	selectionneur	Giovanni	Trapattoni	\N	\N	\N	350
+379	selectionneur	Philippe	Troussier	\N	\N	\N	351
+380	selectionneur	Rudi	Völler	\N	\N	\N	349
+381	selectionneur	Robert	Waseige	\N	\N	\N	339
+382	selectionneur	Jong-goan	An	\N	\N	\N	383
+383	selectionneur	Oko	Aryee	\N	\N	\N	377
+384	selectionneur	Carlos	Borrello	\N	\N	\N	370
+385	selectionneur	Yuri	Bystritsky	\N	\N	\N	382
+386	selectionneur	Marika	Domanski-Lyfors	\N	\N	\N	384
+387	selectionneur	Paulo	Gonçalves	\N	\N	\N	372
+388	selectionneur	April	Heinrichs	\N	\N	\N	385
+389	selectionneur	Élisabeth	Loisel	\N	\N	\N	375
+390	selectionneur	Liangxing	Ma	\N	\N	\N	374
+391	selectionneur	Samuel	Okpodu	\N	\N	\N	379
+392	selectionneur	Even	Pellerud	\N	\N	\N	373
+393	selectionneur	Song-gun	Ri	\N	\N	\N	380
+394	selectionneur	Adrian	Santrac	\N	\N	\N	371
+395	selectionneur	Åge	Steen	\N	\N	\N	381
+396	selectionneur	Tina	Theune-Meyer	\N	\N	\N	376
+397	selectionneur	Eiji	Ueda	\N	\N	\N	378
+398	selectionneur	Dick	Advocaat	\N	\N	\N	409
+399	selectionneur	Luis	Aragonés	\N	\N	\N	410
+400	selectionneur	Bruce	Arena	\N	\N	\N	417
+401	selectionneur	Leo	Beenhakker	\N	\N	\N	414
+402	selectionneur	Oleg	Blokhin	\N	\N	\N	416
+403	selectionneur	Karel	Brückner	\N	\N	\N	392
+404	selectionneur	Raymond	Domenech	\N	\N	\N	395
+405	selectionneur	Ratomir	Dujković	\N	\N	\N	397
+406	selectionneur	Sven-Göran	Eriksson	\N	\N	\N	394
+407	selectionneur	Oliveira	Gonçalves	\N	\N	\N	386
+408	selectionneur	Alexandre	Guimarães	\N	\N	\N	390
+409	selectionneur	Guus	Hiddink	\N	\N	\N	388
+410	selectionneur	Branko	Ivanković	\N	\N	\N	398
+411	selectionneur	Paweł	Janas	\N	\N	\N	405
+412	selectionneur	Jürgen	Klinsmann	\N	\N	\N	396
+413	selectionneur	Zlatko	Kranjčar	\N	\N	\N	391
+414	selectionneur	Köbi	Kuhn	\N	\N	\N	412
+415	selectionneur	Ricardo	La Volpe	\N	\N	\N	402
+416	selectionneur	Lars	Lagerbäck	\N	\N	\N	411
+417	selectionneur	Roger	Lemerre	\N	\N	\N	415
+418	selectionneur	Marcello	Lippi	\N	\N	\N	399
+419	selectionneur	Henri	Michel	\N	\N	\N	400
+420	selectionneur	Marcos	Paquetá	\N	\N	\N	407
+421	selectionneur	Carlos Alberto	Parreira	\N	\N	\N	389
+422	selectionneur	José	Pékerman	\N	\N	\N	387
+423	selectionneur	Ilija	Petković	\N	\N	\N	408
+424	selectionneur	Otto	Pfister	\N	\N	\N	413
+425	selectionneur	Aníbal	Ruiz	\N	\N	\N	404
+426	selectionneur	Luiz Felipe	Scolari	\N	\N	\N	406
+427	selectionneur	Luis Fernando	Suárez	\N	\N	\N	393
+428	selectionneur	Marco	van Basten	\N	\N	\N	403
+429	selectionneur	not applicable	Zico	\N	\N	\N	401
+430	selectionneur	Jorge	Barcellos	\N	\N	\N	420
+431	selectionneur	Bjarne	Berntsen	\N	\N	\N	431
+432	selectionneur	Carlos	Borrello	\N	\N	\N	418
+433	selectionneur	Thomas	Dennerby	\N	\N	\N	432
+434	selectionneur	Marika	Domanski-Lyfors	\N	\N	\N	422
+435	selectionneur	Ntiero	Effiom	\N	\N	\N	429
+436	selectionneur	Kenneth	Heiner-Møller	\N	\N	\N	423
+437	selectionneur	John	Herdman	\N	\N	\N	428
+438	selectionneur	Kwang-min	Kim	\N	\N	\N	430
+439	selectionneur	Silvia	Neid	\N	\N	\N	425
+440	selectionneur	Hiroshi	Ohashi	\N	\N	\N	427
+441	selectionneur	Isaac	Paha	\N	\N	\N	426
+442	selectionneur	Even	Pellerud	\N	\N	\N	421
+443	selectionneur	Hope	Powell	\N	\N	\N	424
+444	selectionneur	Greg	Ryan	\N	\N	\N	433
+445	selectionneur	Tom	Sermanni	\N	\N	\N	419
+446	selectionneur	Javier	Aguirre	\N	\N	\N	450
+447	selectionneur	Radomir	Antić	\N	\N	\N	457
+448	selectionneur	Marcelo	Bielsa	\N	\N	\N	439
+449	selectionneur	Bob	Bradley	\N	\N	\N	464
+450	selectionneur	Fabio	Capello	\N	\N	\N	441
+451	selectionneur	Vicente	del Bosque	\N	\N	\N	462
+452	selectionneur	Raymond	Domenech	\N	\N	\N	442
+453	selectionneur	not applicable	Dunga	\N	\N	\N	437
+454	selectionneur	Sven-Göran	Eriksson	\N	\N	\N	448
+455	selectionneur	Ricki	Herbert	\N	\N	\N	452
+456	selectionneur	Ottmar	Hitzfeld	\N	\N	\N	463
+457	selectionneur	Jung-moo	Huh	\N	\N	\N	461
+458	selectionneur	Matjaž	Kek	\N	\N	\N	459
+459	selectionneur	Jong-hun	Kim	\N	\N	\N	454
+460	selectionneur	Lars	Lagerbäck	\N	\N	\N	453
+461	selectionneur	Paul	Le Guen	\N	\N	\N	438
+462	selectionneur	Marcello	Lippi	\N	\N	\N	447
+463	selectionneur	Joachim	Löw	\N	\N	\N	443
+464	selectionneur	Diego	Maradona	\N	\N	\N	435
+465	selectionneur	Gerardo	Martino	\N	\N	\N	455
+466	selectionneur	Takeshi	Okada	\N	\N	\N	449
+467	selectionneur	Morten	Olsen	\N	\N	\N	440
+468	selectionneur	Carlos Alberto	Parreira	\N	\N	\N	460
+469	selectionneur	Carlos	Queiroz	\N	\N	\N	456
+470	selectionneur	Milovan	Rajevac	\N	\N	\N	444
+471	selectionneur	Otto	Rehhagel	\N	\N	\N	445
+472	selectionneur	Reinaldo	Rueda	\N	\N	\N	446
+473	selectionneur	Rabah	Saâdane	\N	\N	\N	434
+474	selectionneur	Óscar	Tabárez	\N	\N	\N	465
+475	selectionneur	Bert	van Marwijk	\N	\N	\N	451
+476	selectionneur	Pim	Verbeek	\N	\N	\N	436
+477	selectionneur	Vladimír	Weiss	\N	\N	\N	458
+478	selectionneur	Bruno	Bini	\N	\N	\N	472
+479	selectionneur	Leonardo	Cuéllar	\N	\N	\N	475
+480	selectionneur	Thomas	Dennerby	\N	\N	\N	480
+481	selectionneur	Marcello	Frigério	\N	\N	\N	471
+482	selectionneur	John	Herdman	\N	\N	\N	476
+483	selectionneur	Kwang-min	Kim	\N	\N	\N	478
+484	selectionneur	Eli	Landsem	\N	\N	\N	479
+485	selectionneur	Kleiton	lima	\N	\N	\N	467
+486	selectionneur	Carolina	Morace	\N	\N	\N	468
+487	selectionneur	Silvia	Neid	\N	\N	\N	473
+488	selectionneur	Hope	Powell	\N	\N	\N	470
+489	selectionneur	Ricardo	Rozo	\N	\N	\N	469
+490	selectionneur	Norio	Sasaki	\N	\N	\N	474
+491	selectionneur	Tom	Sermanni	\N	\N	\N	466
+492	selectionneur	Pia	Sundhage	\N	\N	\N	481
+493	selectionneur	Ngozi Eucharia	Uche	\N	\N	\N	477
+494	selectionneur	James Kwesi	Appiah	\N	\N	\N	497
+495	selectionneur	Paulo	Bento	\N	\N	\N	507
+496	selectionneur	Fabio	Capello	\N	\N	\N	508
+497	selectionneur	Vicente	del Bosque	\N	\N	\N	510
+498	selectionneur	Didier	Deschamps	\N	\N	\N	495
+499	selectionneur	Volker	Finke	\N	\N	\N	488
+500	selectionneur	Vahid	Halilhodžić	\N	\N	\N	482
+501	selectionneur	Miguel	Herrera	\N	\N	\N	504
+502	selectionneur	Ottmar	Hitzfeld	\N	\N	\N	511
+503	selectionneur	Roy	Hodgson	\N	\N	\N	494
+504	selectionneur	Myung-bo	Hong	\N	\N	\N	509
+505	selectionneur	Stephen	Keshi	\N	\N	\N	506
+506	selectionneur	Jürgen	Klinsmann	\N	\N	\N	512
+507	selectionneur	Niko	Kovač	\N	\N	\N	492
+508	selectionneur	Sabri	Lamouchi	\N	\N	\N	502
+509	selectionneur	Joachim	Löw	\N	\N	\N	496
+510	selectionneur	José	Pékerman	\N	\N	\N	490
+511	selectionneur	Jorge Luis	Pinto	\N	\N	\N	491
+512	selectionneur	Ange	Postecoglou	\N	\N	\N	484
+513	selectionneur	Cesare	Prandelli	\N	\N	\N	501
+514	selectionneur	Carlos	Queiroz	\N	\N	\N	500
+515	selectionneur	Reinaldo	Rueda	\N	\N	\N	493
+516	selectionneur	Alejandro	Sabella	\N	\N	\N	483
+517	selectionneur	Jorge	Sampaoli	\N	\N	\N	489
+518	selectionneur	Fernando	Santos	\N	\N	\N	498
+519	selectionneur	Luiz Felipe	Scolari	\N	\N	\N	487
+520	selectionneur	Luis Fernando	Suárez	\N	\N	\N	499
+521	selectionneur	Safet	Sušić	\N	\N	\N	486
+522	selectionneur	Óscar	Tabárez	\N	\N	\N	513
+523	selectionneur	Louis	van Gaal	\N	\N	\N	505
+524	selectionneur	Marc	Wilmots	\N	\N	\N	485
+525	selectionneur	Alberto	Zaccheroni	\N	\N	\N	503
+526	selectionneur	Vanessa	Arauz	\N	\N	\N	521
+527	selectionneur	Philippe	Bergeroo	\N	\N	\N	523
+528	selectionneur	Leonardo	Cuéllar	\N	\N	\N	527
+529	selectionneur	Jill	Ellis	\N	\N	\N	537
+530	selectionneur	Carl	Enow	\N	\N	\N	516
+531	selectionneur	Wei	Hao	\N	\N	\N	518
+532	selectionneur	John	Herdman	\N	\N	\N	517
+533	selectionneur	Silvia	Neid	\N	\N	\N	524
+534	selectionneur	Edwin	Okon	\N	\N	\N	530
+535	selectionneur	Even	Pellerud	\N	\N	\N	531
+536	selectionneur	Ignacio	Quereda	\N	\N	\N	533
+537	selectionneur	Tony	Readings	\N	\N	\N	529
+538	selectionneur	Roger	Reijners	\N	\N	\N	528
+539	selectionneur	Mark	Sampson	\N	\N	\N	522
+540	selectionneur	Norio	Sasaki	\N	\N	\N	526
+541	selectionneur	Nuengrutai	Srathongvian	\N	\N	\N	536
+542	selectionneur	Alen	Stajcic	\N	\N	\N	514
+543	selectionneur	Pia	Sundhage	\N	\N	\N	534
+544	selectionneur	Fabián	Taborda	\N	\N	\N	519
+545	selectionneur	Clémentine	Touré	\N	\N	\N	525
+546	selectionneur	not applicable	Vadão	\N	\N	\N	515
+547	selectionneur	Amelia	Valverde	\N	\N	\N	520
+548	selectionneur	Martina	Voss-Tecklenburg	\N	\N	\N	535
+549	selectionneur	Deok-yeo	Yoon	\N	\N	\N	532
+550	selectionneur	Janne	Andersson	\N	\N	\N	566
+551	selectionneur	Stanislav	Cherchesov	\N	\N	\N	560
+552	selectionneur	Aliou	Cissé	\N	\N	\N	562
+553	selectionneur	Héctor	Cúper	\N	\N	\N	546
+554	selectionneur	Zlatko	Dalić	\N	\N	\N	544
+555	selectionneur	Didier	Deschamps	\N	\N	\N	548
+556	selectionneur	Ricardo	Gareca	\N	\N	\N	557
+557	selectionneur	Hernán Darío	Gómez	\N	\N	\N	556
+558	selectionneur	Heimir	Hallgrímsson	\N	\N	\N	550
+559	selectionneur	Åge	Hareide	\N	\N	\N	545
+560	selectionneur	Fernando	Hierro	\N	\N	\N	565
+561	selectionneur	Mladen	Krstajić	\N	\N	\N	563
+562	selectionneur	Joachim	Löw	\N	\N	\N	549
+563	selectionneur	Nabil	Maâloul	\N	\N	\N	568
+564	selectionneur	Roberto	Martínez	\N	\N	\N	540
+565	selectionneur	Adam	Nawałka	\N	\N	\N	558
+566	selectionneur	Akira	Nishino	\N	\N	\N	552
+567	selectionneur	Juan Carlos	Osorio	\N	\N	\N	553
+568	selectionneur	José	Pékerman	\N	\N	\N	542
+569	selectionneur	Vladimir	Petković	\N	\N	\N	567
+570	selectionneur	Juan Antonio	Pizzi	\N	\N	\N	561
+571	selectionneur	Carlos	Queiroz	\N	\N	\N	551
+572	selectionneur	Óscar	Ramírez	\N	\N	\N	543
+573	selectionneur	Hervé	Renard	\N	\N	\N	554
+574	selectionneur	Gernot	Rohr	\N	\N	\N	555
+575	selectionneur	Jorge	Sampaoli	\N	\N	\N	538
+576	selectionneur	Fernando	Santos	\N	\N	\N	559
+577	selectionneur	Tae-yong	Shin	\N	\N	\N	564
+578	selectionneur	Gareth	Southgate	\N	\N	\N	547
+579	selectionneur	Óscar	Tabárez	\N	\N	\N	569
+580	selectionneur	not applicable	Tite	\N	\N	\N	541
+581	selectionneur	Bert	van Marwijk	\N	\N	\N	539
+582	selectionneur	Milena	Bertolini	\N	\N	\N	580
+583	selectionneur	Carlos	Borrello	\N	\N	\N	570
+584	selectionneur	Thomas	Dennerby	\N	\N	\N	585
+585	selectionneur	Corinne	Diacre	\N	\N	\N	578
+586	selectionneur	Alain	Djeumfa	\N	\N	\N	573
+587	selectionneur	Desiree	Ellis	\N	\N	\N	588
+588	selectionneur	Jill	Ellis	\N	\N	\N	593
+589	selectionneur	Peter	Gerhardsson	\N	\N	\N	591
+590	selectionneur	Kenneth	Heiner-Møller	\N	\N	\N	574
+591	selectionneur	Xiuquan	Jia	\N	\N	\N	576
+592	selectionneur	Shelley	Kerr	\N	\N	\N	587
+593	selectionneur	José	Letelier	\N	\N	\N	575
+594	selectionneur	Hue	Menzies	\N	\N	\N	581
+595	selectionneur	Ante	Milicic	\N	\N	\N	571
+596	selectionneur	Phil	Neville	\N	\N	\N	577
+597	selectionneur	Tom	Sermanni	\N	\N	\N	584
+598	selectionneur	Martin	Sjögren	\N	\N	\N	586
+599	selectionneur	Nuengrutai	Srathongvian	\N	\N	\N	592
+600	selectionneur	Asako	Takakura	\N	\N	\N	582
+601	selectionneur	not applicable	Vadão	\N	\N	\N	572
+602	selectionneur	Jorge	Vilda	\N	\N	\N	590
+603	selectionneur	Martina	Voss-Tecklenburg	\N	\N	\N	579
+604	selectionneur	Sarina	Wiegman	\N	\N	\N	583
+605	selectionneur	Deok-yeo	Yoon	\N	\N	\N	589
+606	selectionneur	Otto	Addo	\N	\N	\N	607
+607	selectionneur	Gustavo	Alfaro	\N	\N	\N	603
+608	selectionneur	Diego	Alonso	\N	\N	\N	624
+609	selectionneur	Graham	Arnold	\N	\N	\N	595
+610	selectionneur	Paulo	Bento	\N	\N	\N	619
+611	selectionneur	Gregg	Berhalter	\N	\N	\N	623
+612	selectionneur	Aliou	Cissé	\N	\N	\N	617
+613	selectionneur	Zlatko	Dalić	\N	\N	\N	601
+614	selectionneur	Didier	Deschamps	\N	\N	\N	605
+615	selectionneur	Luis	Enrique	\N	\N	\N	620
+616	selectionneur	Hansi	Flick	\N	\N	\N	606
+617	selectionneur	John	Herdman	\N	\N	\N	599
+618	selectionneur	Kasper	Hjulmand	\N	\N	\N	602
+619	selectionneur	Jalel	Kadri	\N	\N	\N	622
+620	selectionneur	Roberto	Martínez	\N	\N	\N	596
+621	selectionneur	Gerardo	Martino	\N	\N	\N	610
+622	selectionneur	Czesław	Michniewicz	\N	\N	\N	613
+623	selectionneur	Hajime	Moriyasu	\N	\N	\N	609
+624	selectionneur	Rob	Page	\N	\N	\N	625
+625	selectionneur	Carlos	Queiroz	\N	\N	\N	608
+626	selectionneur	Walid	Regragui	\N	\N	\N	611
+627	selectionneur	Hervé	Renard	\N	\N	\N	616
+628	selectionneur	Félix	Sánchez	\N	\N	\N	615
+629	selectionneur	Fernando	Santos	\N	\N	\N	614
+630	selectionneur	Lionel	Scaloni	\N	\N	\N	594
+631	selectionneur	Rigobert	Song	\N	\N	\N	598
+632	selectionneur	Gareth	Southgate	\N	\N	\N	604
+633	selectionneur	Dragan	Stojković	\N	\N	\N	618
+634	selectionneur	Luis Fernando	Suárez	\N	\N	\N	600
+635	selectionneur	not applicable	Tite	\N	\N	\N	597
+636	selectionneur	Louis	van Gaal	\N	\N	\N	612
+637	selectionneur	Murat	Yakin	\N	\N	\N	621
 \.
 
 
@@ -11197,7 +26302,7 @@ SELECT pg_catalog.setval('public.arbitres_id_arbitre_seq', 1, false);
 -- Name: equipe_id_equipe_seq; Type: SEQUENCE SET; Schema: public; Owner: wcuser
 --
 
-SELECT pg_catalog.setval('public.equipe_id_equipe_seq', 1, false);
+SELECT pg_catalog.setval('public.equipe_id_equipe_seq', 625, true);
 
 
 --
@@ -11225,7 +26330,7 @@ SELECT pg_catalog.setval('public.matchs_id_match_seq', 1, false);
 -- Name: stafftechnique_id_staff_seq; Type: SEQUENCE SET; Schema: public; Owner: wcuser
 --
 
-SELECT pg_catalog.setval('public.stafftechnique_id_staff_seq', 1, false);
+SELECT pg_catalog.setval('public.stafftechnique_id_staff_seq', 637, true);
 
 
 --

@@ -66,7 +66,18 @@ npm start
 ```bash
 docker exec -it postgres-wc psql -U wcuser -d worldcupdb
 ```
-
+#### Exemple de requete pour voir si tous va bien:
+```
+SELECT prenom, nomfamille
+FROM   joueur
+WHERE  (jourN  = 24
+AND  moisN  = 6
+AND  anneen = 1987) OR
+(jourN  = 5
+AND  moisN  = 2
+AND  anneen = 1985);
+```
+La BD devrait te retourner les deux 🐐.
 ## 🔒 Informations pour se connecter à la base de données avec un IDE quelconque
 
 | Paramètre       | Valeur        |
