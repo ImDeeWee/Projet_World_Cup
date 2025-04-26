@@ -49,7 +49,6 @@ ALTER TYPE public.type_faute OWNER TO wcuser;
 
 CREATE TYPE public.type_rang AS ENUM (
     'phase de pool',
-    '1/16',
     '1/8',
     '1/4',
     '1/2',
@@ -78,23 +77,23 @@ ALTER TYPE public.type_role_arbitre OWNER TO wcuser;
 
 CREATE FUNCTION public.fn_donne_verifie_arbitre_principal() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    v_role type_role_arbitre;
-BEGIN
-    SELECT rolearbitre
-      INTO v_role
-      FROM arbitres
-     WHERE id_arbitre = NEW.arbitre_id;
-
-    IF v_role IS DISTINCT FROM 'Principal' THEN
-        RAISE EXCEPTION
-          'Arbitre % n''a pas le rôle ''Principal'' (actuel = %)',
-          NEW.arbitre_id, v_role;
-    END IF;
-
-    RETURN NEW;
-END;
+    AS $$
+DECLARE
+    v_role type_role_arbitre;
+BEGIN
+    SELECT rolearbitre
+      INTO v_role
+      FROM arbitres
+     WHERE id_arbitre = NEW.arbitre_id;
+
+    IF v_role IS DISTINCT FROM 'Principal' THEN
+        RAISE EXCEPTION
+          'Arbitre % n''a pas le rôle ''Principal'' (actuel = %)',
+          NEW.arbitre_id, v_role;
+    END IF;
+
+    RETURN NEW;
+END;
 $$;
 
 
@@ -106,42 +105,42 @@ ALTER FUNCTION public.fn_donne_verifie_arbitre_principal() OWNER TO wcuser;
 
 CREATE FUNCTION public.fn_faute_gestion_cartons() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    nb_jaunes  INT;
-    existe_rouge BOOLEAN;
-BEGIN
-    /* Y a-t-il déjà un rouge pour ce joueur dans ce match ? */
-    SELECT EXISTS (
-        SELECT 1
-          FROM faute
-         WHERE joueur_id = NEW.joueur_id
-           AND match_id  = NEW.match_id
-           AND typefaute = 'Rouge'
-    ) INTO existe_rouge;
-
-    IF existe_rouge THEN
-        RAISE EXCEPTION
-          'Le joueur % a déjà un carton rouge pour le match %, insertion refusée',
-          NEW.joueur_id, NEW.match_id;
-    END IF;
-
-    /* Si l’on ajoute un jaune, faut-il le transformer en rouge ? */
-    IF NEW.typefaute = 'Jaune' THEN
-        SELECT COUNT(*)
-          INTO nb_jaunes
-          FROM faute
-         WHERE joueur_id = NEW.joueur_id
-           AND match_id  = NEW.match_id
-           AND typefaute = 'Jaune';
-
-        IF nb_jaunes >= 1 THEN   -- c’est le 2ᵉ jaune
-            NEW.typefaute := 'Rouge';
-        END IF;
-    END IF;
-
-    RETURN NEW;
-END;
+    AS $$
+DECLARE
+    nb_jaunes  INT;
+    existe_rouge BOOLEAN;
+BEGIN
+    /* Y a-t-il déjà un rouge pour ce joueur dans ce match ? */
+    SELECT EXISTS (
+        SELECT 1
+          FROM faute
+         WHERE joueur_id = NEW.joueur_id
+           AND match_id  = NEW.match_id
+           AND typefaute = 'Rouge'
+    ) INTO existe_rouge;
+
+    IF existe_rouge THEN
+        RAISE EXCEPTION
+          'Le joueur % a déjà un carton rouge pour le match %, insertion refusée',
+          NEW.joueur_id, NEW.match_id;
+    END IF;
+
+    /* Si l’on ajoute un jaune, faut-il le transformer en rouge ? */
+    IF NEW.typefaute = 'Jaune' THEN
+        SELECT COUNT(*)
+          INTO nb_jaunes
+          FROM faute
+         WHERE joueur_id = NEW.joueur_id
+           AND match_id  = NEW.match_id
+           AND typefaute = 'Jaune';
+
+        IF nb_jaunes >= 1 THEN   -- c’est le 2ᵉ jaune
+            NEW.typefaute := 'Rouge';
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
 $$;
 
 
@@ -153,58 +152,42 @@ ALTER FUNCTION public.fn_faute_gestion_cartons() OWNER TO wcuser;
 
 CREATE FUNCTION public.fn_sync_gagnant() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    v_id_a       INT;
-    v_id_b       INT;
-    v_gagnant_id INT;
-BEGIN
-    /* 1) Récupère les infos du match visé */
-    SELECT id_equipea,
-           id_equipeb,
-           gagnant_id
-      INTO v_id_a,
-           v_id_b,
-           v_gagnant_id
-      FROM matchs
-     WHERE id_match = NEW.match_id;
-
-    /* 2) Victoire de l’équipe A */
-    IF NEW.pointequipea > NEW.pointequipeb THEN
-        IF v_gagnant_id IS NULL OR v_gagnant_id = v_id_a THEN
-            UPDATE matchs
-               SET gagnant_id = v_id_a
-             WHERE id_match  = NEW.match_id;
-        ELSE
-            RAISE EXCEPTION
-              'Incohérence : gagnant_id=% mais pointequipea (%) > pointequipeb (%) pour match %',
-              v_gagnant_id, NEW.pointequipea, NEW.pointequipeb, NEW.match_id;
-        END IF;
-
-    /* 3) Victoire de l’équipe B */
-    ELSIF NEW.pointequipeb > NEW.pointequipea THEN
-        IF v_gagnant_id IS NULL OR v_gagnant_id = v_id_b THEN
-            UPDATE matchs
-               SET gagnant_id = v_id_b
-             WHERE id_match  = NEW.match_id;
-        ELSE
-            RAISE EXCEPTION
-              'Incohérence : gagnant_id=% mais pointequipeb (%) > pointequipea (%) pour match %',
-              v_gagnant_id, NEW.pointequipeb, NEW.pointequipea, NEW.match_id;
-        END IF;
-
-    /* 4) Match nul */
-    ELSE  -- NEW.pointequipea = NEW.pointequipeb
-        IF v_gagnant_id IS NOT NULL THEN
-            RAISE EXCEPTION
-              'Match nul : la colonne gagnant_id doit être NULL (match %)',
-              NEW.match_id;
-        END IF;
-        -- Rien à faire si c’est déjà NULL
-    END IF;
-
-    RETURN NEW;      -- valide l'INSERT / UPDATE sur scorefinal
-END;
+    AS $$
+BEGIN
+    IF NEW.pointequipea > NEW.pointequipeb THEN
+        UPDATE matchs 
+        SET gagnant_id = (SELECT id_equipea FROM matchs WHERE id_match = NEW.match_id)
+        WHERE id_match = NEW.match_id;
+    ELSIF NEW.pointequipea < NEW.pointequipeb THEN
+        UPDATE matchs 
+        SET gagnant_id = (SELECT id_equipeb FROM matchs WHERE id_match = NEW.match_id)
+        WHERE id_match = NEW.match_id;
+    ELSIF NEW.pointequipea = NEW.pointequipeb THEN
+        -- Vérifier les tirs au but si disponibles
+        IF NEW.penaltie_equipea IS NOT NULL AND NEW.penaltie_equipeb IS NOT NULL THEN
+            IF NEW.penaltie_equipea > NEW.penaltie_equipeb THEN
+                UPDATE matchs 
+                SET gagnant_id = (SELECT id_equipea FROM matchs WHERE id_match = NEW.match_id)
+                WHERE id_match = NEW.match_id;
+            ELSIF NEW.penaltie_equipea < NEW.penaltie_equipeb THEN
+                UPDATE matchs 
+                SET gagnant_id = (SELECT id_equipeb FROM matchs WHERE id_match = NEW.match_id)
+                WHERE id_match = NEW.match_id;
+            ELSE
+                -- Cas rare : match nul après tirs au but
+                UPDATE matchs 
+                SET gagnant_id = NULL
+                WHERE id_match = NEW.match_id;
+            END IF;
+        ELSE
+            -- Pas de tirs au but, match nul
+            UPDATE matchs 
+            SET gagnant_id = NULL
+            WHERE id_match = NEW.match_id;
+        END IF;
+    END IF;
+    RETURN NEW;
+END;
 $$;
 
 
@@ -216,64 +199,64 @@ ALTER FUNCTION public.fn_sync_gagnant() OWNER TO wcuser;
 
 CREATE FUNCTION public.fn_verifie_roles_arbitres() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    r_principal  type_role_arbitre;
-    r_assist1    type_role_arbitre;
-    r_assist2    type_role_arbitre;
-    r_assist3    type_role_arbitre;
-BEGIN
-    /* 2-a ► mêmes arbitres plusieurs fois ? */
-    IF NEW.arbitre_principal_id IN (NEW.arbitre_secondaire1_id,
-                                    NEW.arbitre_secondaire2_id,
-                                    NEW.arbitre_secondaire3_id)
-       OR NEW.arbitre_secondaire1_id IS NOT NULL
-          AND NEW.arbitre_secondaire1_id IN (NEW.arbitre_secondaire2_id,
-                                             NEW.arbitre_secondaire3_id)
-       OR NEW.arbitre_secondaire2_id IS NOT NULL
-          AND NEW.arbitre_secondaire2_id = NEW.arbitre_secondaire3_id
-    THEN
-        RAISE EXCEPTION
-          'Le même arbitre ne peut pas être assigné plus d’une fois pour le match %',
-          NEW.match_id;
-    END IF;
-
-    /* 2-b ► rôles conformes ? */
-    SELECT rolearbitre INTO r_principal
-      FROM arbitres WHERE id_arbitre = NEW.arbitre_principal_id;
-
-    IF r_principal IS DISTINCT FROM 'Principal' THEN
-        RAISE EXCEPTION
-          'L’’arbitre % doit avoir le rôle Principal (actuel = %)',
-          NEW.arbitre_principal_id, r_principal;
-    END IF;
-
-    SELECT rolearbitre INTO r_assist1
-      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire1_id;
-    IF r_assist1 IS DISTINCT FROM 'Assistant' THEN
-        RAISE EXCEPTION
-          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
-          NEW.arbitre_secondaire1_id, r_assist1;
-    END IF;
-
-    SELECT rolearbitre INTO r_assist2
-      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire2_id;
-    IF r_assist2 IS DISTINCT FROM 'Assistant' THEN
-        RAISE EXCEPTION
-          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
-          NEW.arbitre_secondaire2_id, r_assist2;
-    END IF;
-
-    SELECT rolearbitre INTO r_assist3
-      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire3_id;
-    IF r_assist3 IS DISTINCT FROM 'Assistant' THEN
-        RAISE EXCEPTION
-          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
-          NEW.arbitre_secondaire3_id, r_assist3;
-    END IF;
-
-    RETURN NEW;                -- validation réussie
-END;
+    AS $$
+DECLARE
+    r_principal  type_role_arbitre;
+    r_assist1    type_role_arbitre;
+    r_assist2    type_role_arbitre;
+    r_assist3    type_role_arbitre;
+BEGIN
+    /* 2-a ► mêmes arbitres plusieurs fois ? */
+    IF NEW.arbitre_principal_id IN (NEW.arbitre_secondaire1_id,
+                                    NEW.arbitre_secondaire2_id,
+                                    NEW.arbitre_secondaire3_id)
+       OR NEW.arbitre_secondaire1_id IS NOT NULL
+          AND NEW.arbitre_secondaire1_id IN (NEW.arbitre_secondaire2_id,
+                                             NEW.arbitre_secondaire3_id)
+       OR NEW.arbitre_secondaire2_id IS NOT NULL
+          AND NEW.arbitre_secondaire2_id = NEW.arbitre_secondaire3_id
+    THEN
+        RAISE EXCEPTION
+          'Le même arbitre ne peut pas être assigné plus d’une fois pour le match %',
+          NEW.match_id;
+    END IF;
+
+    /* 2-b ► rôles conformes ? */
+    SELECT rolearbitre INTO r_principal
+      FROM arbitres WHERE id_arbitre = NEW.arbitre_principal_id;
+
+    IF r_principal IS DISTINCT FROM 'Principal' THEN
+        RAISE EXCEPTION
+          'L’’arbitre % doit avoir le rôle Principal (actuel = %)',
+          NEW.arbitre_principal_id, r_principal;
+    END IF;
+
+    SELECT rolearbitre INTO r_assist1
+      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire1_id;
+    IF r_assist1 IS DISTINCT FROM 'Assistant' THEN
+        RAISE EXCEPTION
+          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
+          NEW.arbitre_secondaire1_id, r_assist1;
+    END IF;
+
+    SELECT rolearbitre INTO r_assist2
+      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire2_id;
+    IF r_assist2 IS DISTINCT FROM 'Assistant' THEN
+        RAISE EXCEPTION
+          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
+          NEW.arbitre_secondaire2_id, r_assist2;
+    END IF;
+
+    SELECT rolearbitre INTO r_assist3
+      FROM arbitres WHERE id_arbitre = NEW.arbitre_secondaire3_id;
+    IF r_assist3 IS DISTINCT FROM 'Assistant' THEN
+        RAISE EXCEPTION
+          'L’’arbitre % doit avoir le rôle Assistant (actuel = %)',
+          NEW.arbitre_secondaire3_id, r_assist3;
+    END IF;
+
+    RETURN NEW;                -- validation réussie
+END;
 $$;
 
 
@@ -285,30 +268,30 @@ ALTER FUNCTION public.fn_verifie_roles_arbitres() OWNER TO wcuser;
 
 CREATE FUNCTION public.joue_check_same_year() RETURNS trigger
     LANGUAGE plpgsql
-    AS $$
-DECLARE
-    anneeA INT;
-    anneeB INT;
-BEGIN
-    -- récupérer l'année de chaque équipe
-    SELECT anneecoupe INTO anneeA
-    FROM   equipe
-    WHERE  id_equipe = NEW.id_equipeA;
-
-    SELECT anneecoupe INTO anneeB
-    FROM   equipe
-    WHERE  id_equipe = NEW.id_equipeB;
-
-    -- si l'une des deux lignes n'existe pas, FK lèvera déjà l'erreur ;
-    -- on vérifie seulement l'égalité
-    IF anneeA IS DISTINCT FROM anneeB THEN
-        RAISE EXCEPTION
-          'Les équipes % et % ne participent pas à la même édition : % vs %',
-          NEW.id_equipeA, NEW.id_equipeB, anneeA, anneeB;
-    END IF;
-
-    RETURN NEW;   -- tout est OK, on laisse passer
-END;
+    AS $$
+DECLARE
+    anneeA INT;
+    anneeB INT;
+BEGIN
+    -- récupérer l'année de chaque équipe
+    SELECT anneecoupe INTO anneeA
+    FROM   equipe
+    WHERE  id_equipe = NEW.id_equipeA;
+
+    SELECT anneecoupe INTO anneeB
+    FROM   equipe
+    WHERE  id_equipe = NEW.id_equipeB;
+
+    -- si l'une des deux lignes n'existe pas, FK lèvera déjà l'erreur ;
+    -- on vérifie seulement l'égalité
+    IF anneeA IS DISTINCT FROM anneeB THEN
+        RAISE EXCEPTION
+          'Les équipes % et % ne participent pas à la même édition : % vs %',
+          NEW.id_equipeA, NEW.id_equipeB, anneeA, anneeB;
+    END IF;
+
+    RETURN NEW;   -- tout est OK, on laisse passer
+END;
 $$;
 
 
@@ -584,7 +567,9 @@ ALTER TABLE public.possede OWNER TO wcuser;
 CREATE TABLE public.scorefinal (
     match_id integer NOT NULL,
     pointequipea integer NOT NULL,
-    pointequipeb integer NOT NULL
+    pointequipeb integer NOT NULL,
+    penaltie_equipea integer,
+    penaltie_equipeb integer
 );
 
 
@@ -13189,6 +13174,1254 @@ COPY public.joueur (id_joueur, numero, prenom, nomfamille, journ, moisn, anneen,
 --
 
 COPY public.matchs (id_match, jourm, moism, rang, stade, arbitreprincipal_id, id_equipea, id_equipeb, gagnant_id) FROM stdin;
+109	8	6	phase de pool	Ullevi	\N	85	78	\N
+551	8	6	phase de pool	Olympia	\N	286	280	\N
+969	17	6	phase de pool	Arena Pantanal	\N	508	509	\N
+1	13	7	phase de pool	Estadio Pocitos	\N	6	7	6
+2	13	7	phase de pool	Estadio Gran Parque Central	\N	11	2	11
+3	14	7	phase de pool	Estadio Gran Parque Central	\N	13	4	13
+4	14	7	phase de pool	Estadio Pocitos	\N	10	9	10
+5	15	7	phase de pool	Estadio Gran Parque Central	\N	1	6	1
+6	16	7	phase de pool	Estadio Gran Parque Central	\N	5	7	5
+7	17	7	phase de pool	Estadio Gran Parque Central	\N	13	3	13
+8	17	7	phase de pool	Estadio Gran Parque Central	\N	11	8	11
+9	18	7	phase de pool	Estadio Centenario	\N	12	9	12
+10	19	7	phase de pool	Estadio Centenario	\N	5	6	5
+11	19	7	phase de pool	Estadio Centenario	\N	1	7	1
+12	20	7	phase de pool	Estadio Centenario	\N	4	3	4
+13	20	7	phase de pool	Estadio Centenario	\N	8	2	8
+14	21	7	phase de pool	Estadio Centenario	\N	12	10	12
+15	22	7	phase de pool	Estadio Centenario	\N	1	5	1
+16	26	7	1/2	Estadio Centenario	\N	1	11	1
+17	27	7	1/2	Estadio Centenario	\N	12	13	12
+18	30	7	Finale	Estadio Centenario	\N	12	1	12
+19	27	5	1/8	Stadio Benito Mussolini	\N	15	20	15
+20	27	5	1/8	Stadio Littorio	\N	18	25	18
+21	27	5	1/8	Stadio Giovanni Berta	\N	21	16	21
+22	27	5	1/8	Stadio Giorgio Ascarelli	\N	22	19	22
+23	27	5	1/8	Stadio Nazionale PNF	\N	23	29	23
+24	27	5	1/8	Stadio Luigi Ferraris	\N	26	17	26
+25	27	5	1/8	Stadio Renato Dall'Ara	\N	27	14	27
+26	27	5	1/8	San Siro	\N	28	24	28
+27	31	5	1/4	Stadio Renato Dall'Ara	\N	15	22	15
+28	31	5	1/4	Stadio Benito Mussolini	\N	18	28	18
+29	31	5	1/4	San Siro	\N	21	27	21
+30	31	5	1/4	Stadio Giovanni Berta	\N	23	26	\N
+31	1	6	1/4	Stadio Giovanni Berta	\N	23	26	23
+32	3	6	1/2	Stadio Nazionale PNF	\N	18	21	18
+33	3	6	1/2	San Siro	\N	23	15	23
+34	7	6	FinaleConsolation	Stadio Giorgio Ascarelli	\N	21	15	21
+35	10	6	Finale	Stadio Nazionale PNF	\N	23	18	23
+36	4	6	1/8	Parc des Princes	\N	44	36	\N
+37	5	6	1/8	Stade du T.O.E.C.	\N	32	42	\N
+38	5	6	1/8	Stade Olympique de Colombes	\N	35	30	35
+39	5	6	1/8	Vélodrome Municipal	\N	37	34	37
+40	5	6	1/8	Stade Vélodrome	\N	38	40	38
+41	5	6	1/8	Stade de la Meinau	\N	31	41	31
+42	5	6	1/8	Stade Jules Deschaseaux	\N	33	39	33
+43	9	6	1/8	Stade du T.O.E.C.	\N	32	42	32
+44	9	6	1/8	Parc des Princes	\N	44	36	44
+45	12	6	1/4	Stade du Parc Lescure	\N	31	33	\N
+46	12	6	1/4	Stade Victor Boucquey	\N	37	44	37
+47	12	6	1/4	Stade Olympique de Colombes	\N	38	35	38
+48	12	6	1/4	Stade du Fort Carré	\N	43	32	43
+49	14	6	1/4	Stade du Parc Lescure	\N	31	33	31
+50	16	6	1/2	Parc des Princes	\N	37	43	37
+51	16	6	1/2	Stade Vélodrome	\N	38	31	38
+52	19	6	FinaleConsolation	Stade du Parc Lescure	\N	31	43	31
+53	19	6	Finale	Stade Olympique de Colombes	\N	38	37	38
+54	24	6	phase de pool	Estádio do Maracanã	\N	46	50	46
+55	25	6	phase de pool	Estádio Independência	\N	57	54	57
+56	25	6	phase de pool	Estádio do Maracanã	\N	48	47	48
+57	25	6	phase de pool	Estádio Vila Capanema	\N	52	55	52
+58	25	6	phase de pool	Estádio do Pacaembu	\N	53	49	53
+59	28	6	phase de pool	Estádio do Pacaembu	\N	46	54	\N
+60	28	6	phase de pool	Estádio dos Eucaliptos	\N	57	50	57
+61	29	6	phase de pool	Estádio do Maracanã	\N	52	47	52
+62	29	6	phase de pool	Estádio Independência	\N	55	48	55
+63	29	6	phase de pool	Estádio Vila Capanema	\N	53	51	\N
+64	1	7	phase de pool	Estádio do Maracanã	\N	46	57	46
+65	2	7	phase de pool	Estádio Ilha do Retiro	\N	47	55	47
+66	2	7	phase de pool	Estádio do Maracanã	\N	52	48	52
+67	2	7	phase de pool	Estádio do Pacaembu	\N	49	51	49
+68	2	7	phase de pool	Estádio Independência	\N	56	45	56
+69	2	7	phase de pool	Estádio dos Eucaliptos	\N	54	50	54
+70	9	7	phase de pool	Estádio do Maracanã	\N	46	53	46
+71	9	7	phase de pool	Estádio do Pacaembu	\N	56	52	\N
+72	13	7	phase de pool	Estádio do Maracanã	\N	46	52	46
+73	13	7	phase de pool	Estádio do Pacaembu	\N	56	53	56
+74	16	7	phase de pool	Estádio do Pacaembu	\N	53	52	53
+75	16	7	phase de pool	Estádio do Maracanã	\N	56	46	56
+76	16	6	phase de pool	Charmilles Stadium	\N	60	66	60
+77	16	6	phase de pool	Stade Olympique de la Pontaise	\N	73	63	73
+78	16	6	phase de pool	Hardturm Stadium	\N	58	67	58
+79	16	6	phase de pool	Wankdorf Stadium	\N	71	61	71
+80	17	6	phase de pool	Stade Olympique de la Pontaise	\N	69	65	69
+81	17	6	phase de pool	Hardturm Stadium	\N	64	68	64
+82	17	6	phase de pool	Wankdorf Stadium	\N	72	70	72
+83	17	6	phase de pool	St. Jakob Stadium	\N	62	59	\N
+84	19	6	phase de pool	St. Jakob Stadium	\N	71	67	71
+85	19	6	phase de pool	Stade Olympique de la Pontaise	\N	60	73	\N
+86	19	6	phase de pool	Hardturm Stadium	\N	58	61	58
+87	19	6	phase de pool	Charmilles Stadium	\N	63	66	63
+88	20	6	phase de pool	St. Jakob Stadium	\N	64	72	64
+89	20	6	phase de pool	Charmilles Stadium	\N	70	68	70
+90	20	6	phase de pool	Cornaredo Stadium	\N	65	59	65
+91	20	6	phase de pool	Wankdorf Stadium	\N	62	69	62
+92	23	6	phase de pool	Hardturm Stadium	\N	72	70	72
+93	23	6	phase de pool	St. Jakob Stadium	\N	69	65	69
+94	26	6	1/4	Stade Olympique de la Pontaise	\N	58	69	58
+95	26	6	1/4	St. Jakob Stadium	\N	71	62	71
+96	27	6	1/4	Wankdorf Stadium	\N	64	60	64
+97	27	6	1/4	Charmilles Stadium	\N	72	73	72
+98	30	6	1/2	Stade Olympique de la Pontaise	\N	64	71	64
+99	30	6	1/2	St. Jakob Stadium	\N	72	58	72
+100	3	7	FinaleConsolation	Hardturm Stadium	\N	58	71	58
+101	4	7	Finale	Wankdorf Stadium	\N	72	64	72
+102	8	6	phase de pool	Råsunda Stadium	\N	86	81	86
+103	8	6	phase de pool	Malmö Stadion	\N	74	88	88
+104	8	6	phase de pool	Örjans Vall	\N	82	77	82
+105	8	6	phase de pool	Idrottsparken	\N	79	83	79
+106	8	6	phase de pool	Arosvallen	\N	89	84	\N
+107	8	6	phase de pool	Jernvallen	\N	80	87	\N
+108	8	6	phase de pool	Rimnersvallen	\N	76	75	76
+110	11	6	phase de pool	Örjans Vall	\N	74	82	74
+111	11	6	phase de pool	Olympia	\N	88	77	\N
+112	11	6	phase de pool	Idrottsparken	\N	83	84	83
+113	11	6	phase de pool	Arosvallen	\N	89	79	89
+114	11	6	phase de pool	Råsunda Stadium	\N	81	87	\N
+115	11	6	phase de pool	Ullevi	\N	76	78	\N
+116	11	6	phase de pool	Ryavallen	\N	85	75	85
+117	12	6	phase de pool	Råsunda Stadium	\N	86	80	86
+118	15	6	phase de pool	Råsunda Stadium	\N	86	87	\N
+119	15	6	phase de pool	Olympia	\N	77	74	77
+120	15	6	phase de pool	Malmö Stadion	\N	88	82	\N
+121	15	6	phase de pool	Eyravallen	\N	79	84	79
+122	15	6	phase de pool	Tunavallen	\N	83	89	\N
+123	15	6	phase de pool	Jernvallen	\N	80	81	80
+124	15	6	phase de pool	Ullevi	\N	76	85	76
+125	15	6	phase de pool	Ryavallen	\N	78	75	\N
+126	17	6	phase de pool	Malmö Stadion	\N	82	77	82
+127	17	6	phase de pool	Råsunda Stadium	\N	87	80	87
+128	17	6	phase de pool	Ullevi	\N	85	78	85
+129	19	6	1/4	Ullevi	\N	76	87	76
+130	19	6	1/4	Idrottsparken	\N	79	82	79
+131	19	6	1/4	Råsunda Stadium	\N	86	85	86
+132	19	6	1/4	Malmö Stadion	\N	88	89	88
+133	24	6	1/2	Råsunda Stadium	\N	76	79	76
+134	24	6	1/2	Ullevi	\N	86	88	86
+135	28	6	FinaleConsolation	Ullevi	\N	79	88	79
+136	29	6	Finale	Råsunda Stadium	\N	76	86	76
+137	30	5	phase de pool	Estadio Carlos Dittborn	\N	103	94	103
+138	30	5	phase de pool	Estadio Nacional	\N	93	102	93
+139	30	5	phase de pool	Estadio Sausalito	\N	91	99	91
+140	30	5	phase de pool	Estadio El Teniente	\N	90	92	90
+141	31	5	phase de pool	Estadio Carlos Dittborn	\N	100	105	100
+142	31	5	phase de pool	Estadio Nacional	\N	104	98	\N
+143	31	5	phase de pool	Estadio Sausalito	\N	95	101	95
+144	31	5	phase de pool	Estadio El Teniente	\N	97	96	97
+145	2	6	phase de pool	Estadio Carlos Dittborn	\N	105	103	105
+146	2	6	phase de pool	Estadio Nacional	\N	93	98	93
+147	2	6	phase de pool	Estadio Sausalito	\N	91	95	\N
+148	2	6	phase de pool	Estadio El Teniente	\N	96	90	96
+149	3	6	phase de pool	Estadio Carlos Dittborn	\N	100	94	\N
+150	3	6	phase de pool	Estadio Nacional	\N	104	102	104
+151	3	6	phase de pool	Estadio Sausalito	\N	101	99	101
+152	3	6	phase de pool	Estadio El Teniente	\N	97	92	97
+153	6	6	phase de pool	Estadio Carlos Dittborn	\N	100	103	100
+154	6	6	phase de pool	Estadio Nacional	\N	104	93	104
+155	6	6	phase de pool	Estadio Sausalito	\N	91	101	91
+156	6	6	phase de pool	Estadio El Teniente	\N	97	90	\N
+157	7	6	phase de pool	Estadio Carlos Dittborn	\N	105	94	105
+158	7	6	phase de pool	Estadio Nacional	\N	98	102	98
+159	7	6	phase de pool	Estadio Sausalito	\N	99	95	99
+160	7	6	phase de pool	Estadio El Teniente	\N	96	92	\N
+161	10	6	1/4	Estadio Sausalito	\N	91	96	91
+162	10	6	1/4	Estadio Carlos Dittborn	\N	93	100	93
+163	10	6	1/4	Estadio El Teniente	\N	95	97	95
+164	10	6	1/4	Estadio Nacional	\N	105	104	105
+165	13	6	1/2	Estadio Nacional	\N	91	93	91
+166	13	6	1/2	Estadio Sausalito	\N	95	105	95
+167	16	6	FinaleConsolation	Estadio Nacional	\N	93	105	93
+168	17	6	Finale	Estadio Nacional	\N	91	95	91
+169	11	7	phase de pool	Wembley Stadium	\N	110	120	\N
+170	12	7	phase de pool	Hillsborough Stadium	\N	121	119	121
+171	12	7	phase de pool	Goodison Park	\N	107	108	107
+172	12	7	phase de pool	Ayresome Park	\N	117	115	117
+173	13	7	phase de pool	Wembley Stadium	\N	111	114	\N
+174	13	7	phase de pool	Villa Park	\N	106	118	106
+175	13	7	phase de pool	Old Trafford	\N	116	112	116
+176	13	7	phase de pool	Roker Park	\N	113	109	113
+177	15	7	phase de pool	White City Stadium	\N	120	111	120
+178	15	7	phase de pool	Hillsborough Stadium	\N	118	119	118
+179	15	7	phase de pool	Goodison Park	\N	112	107	112
+180	15	7	phase de pool	Ayresome Park	\N	109	115	\N
+181	16	7	phase de pool	Villa Park	\N	106	121	\N
+182	16	7	phase de pool	Old Trafford	\N	116	108	116
+183	16	7	phase de pool	Roker Park	\N	117	113	117
+184	16	7	phase de pool	Wembley Stadium	\N	110	114	110
+185	19	7	phase de pool	Wembley Stadium	\N	114	120	\N
+186	19	7	phase de pool	Hillsborough Stadium	\N	106	119	106
+187	19	7	phase de pool	Goodison Park	\N	116	107	116
+188	19	7	phase de pool	Ayresome Park	\N	115	113	115
+189	20	7	phase de pool	Wembley Stadium	\N	110	111	110
+190	20	7	phase de pool	Villa Park	\N	121	118	121
+191	20	7	phase de pool	Old Trafford	\N	112	108	112
+192	20	7	phase de pool	Roker Park	\N	117	109	117
+193	23	7	1/4	Wembley Stadium	\N	110	106	110
+194	23	7	1/4	Goodison Park	\N	116	115	116
+195	23	7	1/4	Roker Park	\N	117	112	117
+196	23	7	1/4	Hillsborough Stadium	\N	121	120	121
+197	25	7	1/2	Goodison Park	\N	121	117	121
+198	26	7	1/2	Wembley Stadium	\N	110	116	110
+199	28	7	FinaleConsolation	Wembley Stadium	\N	116	117	116
+200	30	7	Finale	Wembley Stadium	\N	110	121	110
+201	31	5	phase de pool	Estadio Azteca	\N	130	134	\N
+202	2	6	phase de pool	Estadio Cuauhtémoc	\N	136	128	136
+203	2	6	phase de pool	Estadio Jalisco	\N	127	133	127
+204	2	6	phase de pool	Estadio Nou Camp	\N	132	124	132
+205	3	6	phase de pool	Estadio Azteca	\N	122	126	122
+206	3	6	phase de pool	La Bombonera	\N	129	135	129
+207	3	6	phase de pool	Estadio Jalisco	\N	123	125	123
+208	3	6	phase de pool	Estadio Nou Camp	\N	137	131	137
+209	6	6	phase de pool	Estadio Azteca	\N	134	122	134
+210	6	6	phase de pool	Estadio Cuauhtémoc	\N	136	129	\N
+211	6	6	phase de pool	Estadio Jalisco	\N	133	125	133
+212	6	6	phase de pool	Estadio Nou Camp	\N	132	131	132
+213	7	6	phase de pool	Estadio Azteca	\N	130	126	130
+214	7	6	phase de pool	La Bombonera	\N	135	128	\N
+215	7	6	phase de pool	Estadio Jalisco	\N	123	127	123
+216	7	6	phase de pool	Estadio Nou Camp	\N	137	124	137
+217	10	6	phase de pool	Estadio Azteca	\N	134	126	134
+218	10	6	phase de pool	Estadio Cuauhtémoc	\N	135	136	135
+219	10	6	phase de pool	Estadio Jalisco	\N	123	133	123
+220	10	6	phase de pool	Estadio Nou Camp	\N	137	132	137
+221	11	6	phase de pool	Estadio Azteca	\N	130	122	130
+222	11	6	phase de pool	La Bombonera	\N	129	128	\N
+223	11	6	phase de pool	Estadio Jalisco	\N	127	125	127
+224	11	6	phase de pool	Estadio Nou Camp	\N	124	131	\N
+225	14	6	1/4	Estadio Jalisco	\N	123	132	123
+226	14	6	1/4	La Bombonera	\N	129	130	129
+227	14	6	1/4	Estadio Azteca	\N	134	136	136
+228	14	6	1/4	Estadio Nou Camp	\N	137	127	137
+229	17	6	1/2	Estadio Jalisco	\N	123	136	123
+230	17	6	1/2	Estadio Azteca	\N	129	137	129
+231	20	6	FinaleConsolation	Estadio Azteca	\N	137	136	137
+232	21	6	Finale	Estadio Azteca	\N	123	129	123
+233	13	6	phase de pool	Waldstadion	\N	140	152	\N
+234	14	6	phase de pool	Olympiastadion	\N	151	142	151
+235	14	6	phase de pool	Volksparkstadion	\N	143	139	143
+236	14	6	phase de pool	Westfalenstadion	\N	153	148	148
+237	15	6	phase de pool	Rheinstadion	\N	149	141	\N
+238	15	6	phase de pool	Niedersachsenstadion	\N	150	146	146
+239	15	6	phase de pool	Olympiastadion	\N	145	144	145
+240	15	6	phase de pool	Neckarstadion	\N	147	138	147
+241	18	6	phase de pool	Volksparkstadion	\N	139	151	151
+242	18	6	phase de pool	Olympiastadion	\N	142	143	\N
+243	18	6	phase de pool	Waldstadion	\N	148	140	\N
+244	18	6	phase de pool	Parkstadion	\N	152	153	152
+245	19	6	phase de pool	Niedersachsenstadion	\N	141	150	\N
+246	19	6	phase de pool	Westfalenstadion	\N	146	149	\N
+247	19	6	phase de pool	Neckarstadion	\N	138	145	\N
+248	19	6	phase de pool	Olympiastadion	\N	144	147	147
+249	22	6	phase de pool	Olympiastadion	\N	139	142	\N
+250	22	6	phase de pool	Waldstadion	\N	148	152	\N
+251	22	6	phase de pool	Parkstadion	\N	153	140	140
+252	22	6	phase de pool	Volksparkstadion	\N	143	151	143
+253	23	6	phase de pool	Westfalenstadion	\N	141	146	146
+254	23	6	phase de pool	Rheinstadion	\N	149	150	149
+255	23	6	phase de pool	Olympiastadion	\N	138	144	138
+256	23	6	phase de pool	Neckarstadion	\N	147	145	147
+257	26	6	phase de pool	Rheinstadion	\N	152	151	151
+258	26	6	phase de pool	Niedersachsenstadion	\N	140	143	140
+259	26	6	phase de pool	Parkstadion	\N	146	138	146
+260	26	6	phase de pool	Neckarstadion	\N	149	147	147
+261	30	6	phase de pool	Niedersachsenstadion	\N	138	140	140
+262	30	6	phase de pool	Parkstadion	\N	143	146	146
+263	30	6	phase de pool	Waldstadion	\N	147	152	147
+264	30	6	phase de pool	Rheinstadion	\N	151	149	151
+265	3	7	phase de pool	Waldstadion	\N	147	151	151
+266	3	7	phase de pool	Parkstadion	\N	138	143	\N
+267	3	7	phase de pool	Westfalenstadion	\N	146	140	146
+268	3	7	phase de pool	Rheinstadion	\N	149	152	149
+269	6	7	FinaleConsolation	Olympiastadion	\N	140	147	147
+270	7	7	Finale	Olympiastadion	\N	146	151	151
+271	1	6	phase de pool	Estadio Monumental	\N	169	164	\N
+272	2	6	phase de pool	Estadio José María Minella	\N	160	157	160
+273	2	6	phase de pool	Estadio Gigante de Arroyito	\N	168	161	168
+274	2	6	phase de pool	Estadio Monumental	\N	154	158	154
+275	3	6	phase de pool	Estadio José Amalfitani	\N	155	166	155
+276	3	6	phase de pool	Estadio José María Minella	\N	156	167	\N
+277	3	6	phase de pool	Estadio Ciudad de Mendoza	\N	162	159	162
+278	3	6	phase de pool	Estadio Chateau Carreras	\N	163	165	163
+279	6	6	phase de pool	Estadio José María Minella	\N	160	158	160
+280	6	6	phase de pool	Estadio Gigante de Arroyito	\N	164	168	164
+281	6	6	phase de pool	Estadio Chateau Carreras	\N	169	161	169
+282	6	6	phase de pool	Estadio Monumental	\N	154	157	154
+283	7	6	phase de pool	Estadio José Amalfitani	\N	155	167	155
+284	7	6	phase de pool	Estadio José María Minella	\N	156	166	\N
+285	7	6	phase de pool	Estadio Ciudad de Mendoza	\N	162	163	\N
+286	7	6	phase de pool	Estadio Chateau Carreras	\N	165	159	\N
+287	10	6	phase de pool	Estadio José María Minella	\N	157	158	157
+288	10	6	phase de pool	Estadio Gigante de Arroyito	\N	164	161	164
+289	10	6	phase de pool	Estadio Chateau Carreras	\N	169	168	\N
+290	10	6	phase de pool	Estadio Monumental	\N	154	160	160
+291	11	6	phase de pool	Estadio José María Minella	\N	156	155	156
+292	11	6	phase de pool	Estadio José Amalfitani	\N	166	167	166
+293	11	6	phase de pool	Estadio Chateau Carreras	\N	163	159	163
+294	11	6	phase de pool	Estadio Ciudad de Mendoza	\N	165	162	165
+295	14	6	phase de pool	Estadio Chateau Carreras	\N	155	162	162
+296	14	6	phase de pool	Estadio Monumental	\N	160	169	\N
+297	14	6	phase de pool	Estadio Ciudad de Mendoza	\N	156	163	156
+298	14	6	phase de pool	Estadio Gigante de Arroyito	\N	154	164	154
+299	18	6	phase de pool	Estadio Ciudad de Mendoza	\N	163	164	164
+300	18	6	phase de pool	Estadio Monumental	\N	160	155	160
+301	18	6	phase de pool	Estadio Chateau Carreras	\N	162	169	\N
+302	18	6	phase de pool	Estadio Gigante de Arroyito	\N	154	156	\N
+303	21	6	phase de pool	Estadio Chateau Carreras	\N	155	169	155
+304	21	6	phase de pool	Estadio Monumental	\N	160	162	162
+305	21	6	phase de pool	Estadio Ciudad de Mendoza	\N	156	164	156
+306	21	6	phase de pool	Estadio Gigante de Arroyito	\N	154	163	154
+307	24	6	FinaleConsolation	Estadio Monumental	\N	156	160	156
+308	25	6	Finale	Estadio Monumental	\N	154	162	154
+309	13	6	phase de pool	Camp Nou	\N	171	173	173
+310	14	6	phase de pool	Balaídos	\N	183	188	\N
+311	14	6	phase de pool	Estadio Ramón Sánchez Pizjuán	\N	174	190	174
+312	15	6	phase de pool	Estadio Riazor	\N	187	175	\N
+313	15	6	phase de pool	Nuevo Estadio	\N	182	178	182
+314	15	6	phase de pool	Estadio La Rosaleda	\N	189	185	189
+315	16	6	phase de pool	Estadio El Molinón	\N	192	170	170
+316	16	6	phase de pool	Estadio San Mamés	\N	179	180	179
+317	16	6	phase de pool	Estadio Luis Casanova	\N	191	181	\N
+318	17	6	phase de pool	Estadio Carlos Tartiere	\N	176	172	172
+319	17	6	phase de pool	Estadio José Zorrilla	\N	177	184	\N
+320	17	6	phase de pool	Estadio La Romareda	\N	193	186	\N
+321	18	6	phase de pool	Balaídos	\N	183	187	\N
+322	18	6	phase de pool	Estadio José Rico Pérez	\N	171	182	171
+323	18	6	phase de pool	Estadio Benito Villamarín	\N	174	189	174
+324	19	6	phase de pool	Estadio Riazor	\N	188	175	\N
+325	19	6	phase de pool	Nuevo Estadio	\N	173	178	173
+326	19	6	phase de pool	Estadio La Rosaleda	\N	190	185	190
+327	20	6	phase de pool	Estadio El Molinón	\N	192	176	192
+328	20	6	phase de pool	Estadio San Mamés	\N	179	177	179
+329	20	6	phase de pool	Estadio Luis Casanova	\N	191	193	191
+330	21	6	phase de pool	Estadio Carlos Tartiere	\N	170	172	172
+331	21	6	phase de pool	Estadio José Zorrilla	\N	180	184	180
+332	21	6	phase de pool	Estadio La Romareda	\N	181	186	\N
+333	22	6	phase de pool	Estadio Riazor	\N	188	187	188
+334	22	6	phase de pool	Nuevo Estadio	\N	173	182	\N
+335	22	6	phase de pool	Estadio La Rosaleda	\N	190	189	\N
+336	23	6	phase de pool	Balaídos	\N	183	175	\N
+337	23	6	phase de pool	Estadio José Rico Pérez	\N	171	178	171
+338	23	6	phase de pool	Estadio Benito Villamarín	\N	174	185	174
+339	24	6	phase de pool	Estadio Carlos Tartiere	\N	170	176	170
+340	24	6	phase de pool	Estadio José Zorrilla	\N	180	177	\N
+341	24	6	phase de pool	Estadio La Romareda	\N	181	193	193
+342	25	6	phase de pool	Estadio El Molinón	\N	192	172	192
+343	25	6	phase de pool	Estadio San Mamés	\N	179	184	179
+344	25	6	phase de pool	Estadio Luis Casanova	\N	191	186	186
+345	28	6	phase de pool	Vicente Calderón	\N	172	180	180
+346	28	6	phase de pool	Camp Nou	\N	188	173	188
+347	29	6	phase de pool	Estadi de Sarrià	\N	183	171	183
+348	29	6	phase de pool	Estadio Santiago Bernabéu	\N	192	179	\N
+349	1	7	phase de pool	Vicente Calderón	\N	172	186	\N
+350	1	7	phase de pool	Camp Nou	\N	173	190	190
+351	2	7	phase de pool	Estadi de Sarrià	\N	171	174	174
+352	2	7	phase de pool	Estadio Santiago Bernabéu	\N	192	191	192
+353	4	7	phase de pool	Vicente Calderón	\N	180	186	180
+354	4	7	phase de pool	Camp Nou	\N	190	188	\N
+355	5	7	phase de pool	Estadi de Sarrià	\N	183	174	183
+356	5	7	phase de pool	Estadio Santiago Bernabéu	\N	191	179	\N
+357	8	7	1/2	Camp Nou	\N	188	183	183
+358	8	7	1/2	Estadio Ramón Sánchez Pizjuán	\N	192	180	192
+359	10	7	FinaleConsolation	Estadio José Rico Pérez	\N	188	180	188
+360	11	7	Finale	Estadio Santiago Bernabéu	\N	183	192	183
+361	31	5	phase de pool	Estadio Azteca	\N	198	205	\N
+362	1	6	phase de pool	Estadio Jalisco	\N	215	197	197
+363	1	6	phase de pool	Estadio Nou Camp	\N	199	202	202
+364	2	6	phase de pool	Estadio Olímpico Universitario	\N	195	213	195
+365	2	6	phase de pool	Estadio Sergio León Chavez	\N	214	203	214
+366	2	6	phase de pool	Estadio Universitario	\N	207	210	\N
+367	3	6	phase de pool	Estadio Azteca	\N	196	206	206
+368	3	6	phase de pool	Estadio Tres de Marzo	\N	194	208	\N
+369	3	6	phase de pool	Estadio Tecnológico	\N	211	201	211
+370	4	6	phase de pool	La Bombonera	\N	209	204	209
+371	4	6	phase de pool	Estadio La Corregidora	\N	216	217	\N
+372	4	6	phase de pool	Estadio Neza 86	\N	212	200	200
+373	5	6	phase de pool	Estadio Cuauhtémoc	\N	205	195	\N
+374	5	6	phase de pool	Estadio Nou Camp	\N	202	214	\N
+375	5	6	phase de pool	Estadio Olímpico Universitario	\N	213	198	\N
+376	6	6	phase de pool	Estadio Sergio León Chavez	\N	203	199	203
+377	6	6	phase de pool	Estadio Jalisco	\N	197	194	197
+378	6	6	phase de pool	Estadio Tecnológico	\N	201	207	\N
+379	7	6	phase de pool	Estadio Azteca	\N	206	209	\N
+380	7	6	phase de pool	Estadio Tres de Marzo	\N	208	215	215
+381	7	6	phase de pool	Estadio Universitario	\N	210	211	210
+382	8	6	phase de pool	La Bombonera	\N	204	196	196
+383	8	6	phase de pool	Estadio La Corregidora	\N	217	212	217
+384	8	6	phase de pool	Estadio Neza 86	\N	200	216	200
+385	9	6	phase de pool	Estadio Nou Camp	\N	203	202	202
+386	9	6	phase de pool	Estadio Sergio León Chavez	\N	214	199	214
+387	10	6	phase de pool	Estadio Olímpico Universitario	\N	195	198	195
+388	10	6	phase de pool	Estadio Cuauhtémoc	\N	213	205	205
+389	11	6	phase de pool	Estadio Azteca	\N	204	206	206
+390	11	6	phase de pool	La Bombonera	\N	209	196	\N
+391	11	6	phase de pool	Estadio Universitario	\N	201	210	201
+392	11	6	phase de pool	Estadio Tres de Marzo	\N	211	207	207
+393	12	6	phase de pool	Estadio Tecnológico	\N	194	215	215
+394	12	6	phase de pool	Estadio Jalisco	\N	208	197	197
+395	13	6	phase de pool	Estadio La Corregidora	\N	200	217	200
+396	13	6	phase de pool	Estadio Neza 86	\N	212	216	\N
+397	15	6	1/8	Estadio Azteca	\N	206	198	206
+398	15	6	1/8	Estadio Nou Camp	\N	214	196	196
+399	16	6	1/8	Estadio Jalisco	\N	197	210	197
+400	16	6	1/8	Estadio Cuauhtémoc	\N	195	216	195
+401	17	6	1/8	Estadio Olímpico Universitario	\N	205	202	202
+402	17	6	1/8	Estadio Universitario	\N	207	217	217
+403	18	6	1/8	Estadio Azteca	\N	201	209	201
+404	18	6	1/8	Estadio La Corregidora	\N	200	215	215
+405	21	6	1/4	Estadio Jalisco	\N	197	202	202
+406	21	6	1/4	Estadio Universitario	\N	217	206	217
+407	22	6	1/4	Estadio Azteca	\N	195	201	195
+408	22	6	1/4	Estadio Cuauhtémoc	\N	215	196	196
+409	25	6	1/2	Estadio Jalisco	\N	202	217	217
+410	25	6	1/2	Estadio Azteca	\N	195	196	195
+411	28	6	FinaleConsolation	Estadio Cuauhtémoc	\N	196	202	202
+412	29	6	Finale	Estadio Azteca	\N	195	217	195
+413	8	6	phase de pool	San Siro	\N	218	222	222
+414	9	6	phase de pool	Stadio San Nicola	\N	234	231	231
+415	9	6	phase de pool	Stadio Renato Dall'Ara	\N	237	223	223
+416	9	6	phase de pool	Stadio Olimpico	\N	228	219	228
+417	10	6	phase de pool	Stadio Comunale	\N	238	225	225
+418	10	6	phase de pool	Stadio delle Alpi	\N	221	236	221
+419	10	6	phase de pool	San Siro	\N	240	241	240
+420	11	6	phase de pool	Stadio Luigi Ferraris	\N	224	232	224
+421	11	6	phase de pool	Stadio Sant'Elia	\N	227	230	\N
+422	12	6	phase de pool	Stadio Marc'Antonio Bentegodi	\N	220	233	220
+423	12	6	phase de pool	Stadio La Favorita	\N	229	226	\N
+424	13	6	phase de pool	Stadio Friuli	\N	239	235	\N
+425	13	6	phase de pool	Stadio San Paolo	\N	218	234	218
+426	14	6	phase de pool	Stadio San Nicola	\N	222	231	222
+427	14	6	phase de pool	Stadio Renato Dall'Ara	\N	241	223	241
+428	14	6	phase de pool	Stadio Olimpico	\N	228	238	228
+429	15	6	phase de pool	Stadio Comunale	\N	219	225	225
+430	15	6	phase de pool	San Siro	\N	240	237	240
+431	16	6	phase de pool	Stadio delle Alpi	\N	221	224	221
+432	16	6	phase de pool	Stadio Luigi Ferraris	\N	236	232	232
+433	16	6	phase de pool	Stadio Sant'Elia	\N	227	229	\N
+434	17	6	phase de pool	Stadio La Favorita	\N	230	226	\N
+435	17	6	phase de pool	Stadio Marc'Antonio Bentegodi	\N	220	239	220
+436	17	6	phase de pool	Stadio Friuli	\N	233	235	235
+437	18	6	phase de pool	Stadio San Paolo	\N	218	231	\N
+438	18	6	phase de pool	Stadio San Nicola	\N	222	234	234
+439	19	6	phase de pool	San Siro	\N	240	223	\N
+440	19	6	phase de pool	Stadio Renato Dall'Ara	\N	241	237	241
+441	19	6	phase de pool	Stadio Comunale	\N	219	238	219
+442	19	6	phase de pool	Stadio Olimpico	\N	228	225	228
+443	20	6	phase de pool	Stadio delle Alpi	\N	221	232	221
+444	20	6	phase de pool	Stadio Luigi Ferraris	\N	236	224	224
+445	21	6	phase de pool	Stadio Marc'Antonio Bentegodi	\N	220	235	235
+446	21	6	phase de pool	Stadio Friuli	\N	233	239	239
+447	21	6	phase de pool	Stadio Sant'Elia	\N	227	226	227
+448	21	6	phase de pool	Stadio La Favorita	\N	230	229	\N
+449	23	6	1/8	Stadio San Paolo	\N	222	223	222
+450	23	6	1/8	Stadio San Nicola	\N	225	224	225
+451	24	6	1/8	Stadio delle Alpi	\N	221	218	218
+452	24	6	1/8	San Siro	\N	240	229	240
+453	25	6	1/8	Stadio Luigi Ferraris	\N	230	231	230
+454	25	6	1/8	Stadio Olimpico	\N	228	239	228
+455	26	6	1/8	Stadio Marc'Antonio Bentegodi	\N	235	241	241
+456	26	6	1/8	Stadio Renato Dall'Ara	\N	227	220	227
+457	30	6	1/4	Stadio Comunale	\N	218	241	218
+458	30	6	1/4	Stadio Olimpico	\N	230	228	228
+459	1	7	1/4	San Siro	\N	225	240	240
+460	1	7	1/4	Stadio San Paolo	\N	222	227	227
+461	3	7	1/2	Stadio San Paolo	\N	218	228	218
+462	4	7	1/2	Stadio delle Alpi	\N	240	227	240
+463	7	7	FinaleConsolation	Stadio San Nicola	\N	228	227	228
+464	8	7	Finale	Stadio Olimpico	\N	240	218	240
+465	16	11	phase de pool	Tainhe Stadium	\N	243	251	243
+466	17	11	phase de pool	Jiangmen Stadium	\N	246	250	246
+467	17	11	phase de pool	Tainhe Stadium	\N	245	249	245
+468	17	11	phase de pool	New Plaza Stadium	\N	248	242	242
+469	17	11	phase de pool	Ying Tung Stadium	\N	252	253	253
+470	17	11	phase de pool	Jiangmen Stadium	\N	244	247	247
+471	19	11	phase de pool	Gaungdong Provincial Stadium	\N	251	249	251
+472	19	11	phase de pool	Zhongshan Stadium	\N	247	250	247
+473	19	11	phase de pool	Gaungdong Provincial Stadium	\N	243	245	\N
+474	19	11	phase de pool	Ying Tung Stadium	\N	242	253	253
+475	19	11	phase de pool	New Plaza Stadium	\N	248	252	252
+476	19	11	phase de pool	Zhongshan Stadium	\N	244	246	246
+477	21	11	phase de pool	Ying Tung Stadium	\N	242	252	252
+478	21	11	phase de pool	New Plaza Stadium	\N	248	253	253
+479	21	11	phase de pool	New Plaza Stadium	\N	243	249	243
+480	21	11	phase de pool	New Plaza Stadium	\N	251	245	251
+481	21	11	phase de pool	Jiangmen Stadium	\N	244	250	244
+482	21	11	phase de pool	Zhongshan Stadium	\N	247	246	246
+483	24	11	1/4	Zhongshan Stadium	\N	245	246	246
+484	24	11	1/4	Tianhe Stadium	\N	243	252	252
+485	24	11	1/4	Jiangmen Stadium	\N	251	247	251
+486	24	11	1/4	New Plaza Stadium	\N	253	244	253
+487	27	11	1/2	Ying Tung Stadium	\N	252	251	251
+488	27	11	1/2	Guangdong Provincial Stadium	\N	246	253	253
+489	29	11	FinaleConsolation	Gaungdong Provincial Stadium	\N	252	246	252
+490	30	11	Finale	Tianhe Stadium	\N	251	253	253
+491	17	6	phase de pool	Soldier Field	\N	261	256	261
+492	17	6	phase de pool	Cotton Bowl	\N	274	273	\N
+493	18	6	phase de pool	Pontiac Silverdome	\N	277	276	\N
+494	18	6	phase de pool	Giants Stadium	\N	263	269	269
+495	18	6	phase de pool	Rose Bowl	\N	260	270	270
+496	19	6	phase de pool	Citrus Bowl	\N	255	265	255
+497	19	6	phase de pool	RFK Stadium	\N	268	264	268
+498	19	6	phase de pool	Rose Bowl	\N	259	275	\N
+499	20	6	phase de pool	Stanford Stadium	\N	257	271	257
+500	20	6	phase de pool	RFK Stadium	\N	266	272	266
+501	21	6	phase de pool	Foxboro Stadium	\N	254	262	254
+502	21	6	phase de pool	Soldier Field	\N	261	274	\N
+503	21	6	phase de pool	Cotton Bowl	\N	267	258	267
+504	22	6	phase de pool	Pontiac Silverdome	\N	270	276	276
+505	22	6	phase de pool	Rose Bowl	\N	277	260	277
+506	23	6	phase de pool	Giants Stadium	\N	263	268	263
+507	23	6	phase de pool	Foxboro Stadium	\N	273	256	\N
+508	24	6	phase de pool	Citrus Bowl	\N	264	269	264
+509	24	6	phase de pool	Stanford Stadium	\N	257	259	257
+510	24	6	phase de pool	Pontiac Silverdome	\N	275	271	275
+511	25	6	phase de pool	Citrus Bowl	\N	255	266	255
+512	25	6	phase de pool	Giants Stadium	\N	272	265	272
+513	25	6	phase de pool	Foxboro Stadium	\N	254	267	254
+514	26	6	phase de pool	Soldier Field	\N	258	262	258
+515	26	6	phase de pool	Stanford Stadium	\N	276	260	260
+516	26	6	phase de pool	Rose Bowl	\N	277	270	270
+517	27	6	phase de pool	Soldier Field	\N	256	274	274
+518	27	6	phase de pool	Cotton Bowl	\N	261	273	261
+519	28	6	phase de pool	RFK Stadium	\N	263	264	\N
+520	28	6	phase de pool	Giants Stadium	\N	269	268	\N
+521	28	6	phase de pool	Stanford Stadium	\N	271	259	271
+522	28	6	phase de pool	Pontiac Silverdome	\N	257	275	\N
+523	29	6	phase de pool	RFK Stadium	\N	255	272	272
+524	29	6	phase de pool	Citrus Bowl	\N	265	266	266
+525	30	6	phase de pool	Cotton Bowl	\N	254	258	258
+526	30	6	phase de pool	Foxboro Stadium	\N	262	267	267
+527	2	7	1/8	Soldier Field	\N	261	255	261
+528	2	7	1/8	RFK Stadium	\N	274	276	274
+529	3	7	1/8	Cotton Bowl	\N	272	275	275
+530	3	7	1/8	Rose Bowl	\N	270	254	270
+531	4	7	1/8	Citrus Bowl	\N	266	269	266
+532	4	7	1/8	Stanford Stadium	\N	257	277	257
+533	5	7	1/8	Foxboro Stadium	\N	267	263	263
+534	5	7	1/8	Giants Stadium	\N	264	258	258
+535	9	7	1/4	Foxboro Stadium	\N	263	274	263
+536	9	7	1/4	Cotton Bowl	\N	266	257	257
+537	10	7	1/4	Giants Stadium	\N	258	261	258
+538	10	7	1/4	Stanford Stadium	\N	270	275	275
+539	13	7	1/2	Giants Stadium	\N	258	263	263
+540	13	7	1/2	Rose Bowl	\N	275	257	257
+541	16	7	FinaleConsolation	Rose Bowl	\N	275	258	275
+542	17	7	Finale	Rose Bowl	\N	257	263	257
+543	5	6	phase de pool	Tingvalla IP	\N	284	285	284
+544	5	6	phase de pool	Olympia	\N	288	279	279
+545	6	6	phase de pool	Olympia	\N	283	280	283
+546	6	6	phase de pool	Tingvalla IP	\N	287	286	287
+547	6	6	phase de pool	Arosvallen	\N	282	278	282
+548	6	6	phase de pool	Strömvallen	\N	289	281	\N
+549	7	6	phase de pool	Tingvalla IP	\N	279	285	285
+550	7	6	phase de pool	Olympia	\N	288	284	288
+552	8	6	phase de pool	Tingvalla IP	\N	287	283	287
+553	8	6	phase de pool	Arosvallen	\N	281	278	281
+554	8	6	phase de pool	Strömvallen	\N	289	282	289
+555	9	6	phase de pool	Tingvalla IP	\N	279	284	284
+556	9	6	phase de pool	Arosvallen	\N	288	285	288
+557	10	6	phase de pool	Tingvalla IP	\N	286	283	283
+558	10	6	phase de pool	Strömvallen	\N	287	280	287
+559	10	6	phase de pool	Arosvallen	\N	281	282	281
+560	10	6	phase de pool	Olympia	\N	289	278	289
+561	13	6	1/4	Strömvallen	\N	285	289	289
+562	13	6	1/4	Tingvalla IP	\N	287	282	287
+563	13	6	1/4	Arosvallen	\N	284	283	284
+564	13	6	1/4	Olympia	\N	288	281	281
+565	15	6	1/2	Arosvallen	\N	289	287	287
+566	15	6	1/2	Olympia	\N	284	281	284
+567	17	6	FinaleConsolation	Strömvallen	\N	281	289	289
+568	18	6	Finale	Råsunda Stadium	\N	284	287	287
+569	10	6	phase de pool	Stade de France	\N	293	315	293
+570	10	6	phase de pool	Stade de la Mosson	\N	308	311	\N
+571	11	6	phase de pool	Stade du Parc Lescure	\N	304	296	\N
+572	11	6	phase de pool	Stade de Toulouse	\N	295	291	\N
+573	12	6	phase de pool	Stade de la Mosson	\N	312	294	\N
+574	12	6	phase de pool	Stade Félix-Bollaert	\N	314	299	299
+575	12	6	phase de pool	Stade Vélodrome	\N	301	316	301
+576	13	6	phase de pool	Stade de la Beaujoire	\N	318	310	310
+577	13	6	phase de pool	Stade de Gerland	\N	317	307	307
+578	13	6	phase de pool	Stade de France	\N	309	292	\N
+579	14	6	phase de pool	Stade de Toulouse	\N	290	306	290
+580	14	6	phase de pool	Stade Geoffroy-Guichard	\N	321	303	321
+581	14	6	phase de pool	Stade Félix-Bollaert	\N	305	298	298
+582	15	6	phase de pool	Stade Vélodrome	\N	300	319	300
+583	15	6	phase de pool	Stade de Gerland	\N	313	297	313
+584	15	6	phase de pool	Parc des Princes	\N	302	320	302
+585	16	6	phase de pool	Stade du Parc Lescure	\N	315	311	\N
+586	16	6	phase de pool	Stade de la Beaujoire	\N	293	308	293
+587	17	6	phase de pool	Stade Geoffroy-Guichard	\N	296	291	\N
+588	17	6	phase de pool	Stade de la Mosson	\N	304	295	304
+589	18	6	phase de pool	Stade de Toulouse	\N	316	299	\N
+590	18	6	phase de pool	Stade de France	\N	301	314	301
+591	19	6	phase de pool	Parc des Princes	\N	310	294	310
+592	19	6	phase de pool	Stade Geoffroy-Guichard	\N	318	312	\N
+593	20	6	phase de pool	Stade de la Beaujoire	\N	306	298	298
+594	20	6	phase de pool	Stade du Parc Lescure	\N	292	307	\N
+595	20	6	phase de pool	Stade Vélodrome	\N	309	317	309
+596	21	6	phase de pool	Stade Félix-Bollaert	\N	302	321	\N
+597	21	6	phase de pool	Parc des Princes	\N	290	305	290
+598	21	6	phase de pool	Stade de Gerland	\N	320	303	303
+599	22	6	phase de pool	Stade de la Mosson	\N	297	319	297
+600	22	6	phase de pool	Stade de Toulouse	\N	313	300	313
+601	23	6	phase de pool	Stade de la Beaujoire	\N	296	295	\N
+602	23	6	phase de pool	Stade de France	\N	304	291	304
+603	23	6	phase de pool	Stade Vélodrome	\N	293	311	311
+604	23	6	phase de pool	Stade Geoffroy-Guichard	\N	315	308	308
+605	24	6	phase de pool	Stade de Gerland	\N	301	299	301
+606	24	6	phase de pool	Stade du Parc Lescure	\N	316	314	\N
+607	24	6	phase de pool	Stade de Toulouse	\N	310	312	312
+608	24	6	phase de pool	Stade Félix-Bollaert	\N	318	294	318
+609	25	6	phase de pool	Parc des Princes	\N	292	317	\N
+610	25	6	phase de pool	Stade Geoffroy-Guichard	\N	309	307	\N
+611	25	6	phase de pool	Stade de la Mosson	\N	302	303	302
+612	25	6	phase de pool	Stade de la Beaujoire	\N	320	321	321
+613	26	6	phase de pool	Stade du Parc Lescure	\N	290	298	290
+614	26	6	phase de pool	Stade de Gerland	\N	306	305	305
+615	26	6	phase de pool	Stade Félix-Bollaert	\N	297	300	300
+616	26	6	phase de pool	Stade de France	\N	313	319	\N
+617	27	6	1/8	Stade Vélodrome	\N	304	311	304
+618	27	6	1/8	Parc des Princes	\N	293	296	293
+619	28	6	1/8	Stade Félix-Bollaert	\N	301	312	301
+620	28	6	1/8	Stade de France	\N	310	299	299
+621	29	6	1/8	Stade de la Mosson	\N	302	307	302
+622	29	6	1/8	Stade de Toulouse	\N	309	321	309
+623	30	6	1/8	Stade du Parc Lescure	\N	313	298	298
+624	30	6	1/8	Stade Geoffroy-Guichard	\N	290	300	290
+625	3	7	1/4	Stade de France	\N	304	301	301
+626	3	7	1/4	Stade de la Beaujoire	\N	293	299	293
+627	4	7	1/4	Stade Vélodrome	\N	309	290	309
+628	4	7	1/4	Stade de Gerland	\N	302	298	298
+629	7	7	1/2	Stade Vélodrome	\N	293	309	293
+630	8	7	1/2	Stade de France	\N	301	298	301
+631	11	7	FinaleConsolation	Parc des Princes	\N	309	298	298
+632	12	7	Finale	Stade de France	\N	293	301	301
+633	19	6	phase de pool	Giants Stadium	\N	337	326	337
+634	19	6	phase de pool	Spartan Stadium	\N	325	336	325
+635	19	6	phase de pool	Giants Stadium	\N	323	331	323
+636	19	6	phase de pool	Spartan Stadium	\N	330	324	\N
+637	20	6	phase de pool	Rose Bowl	\N	327	329	\N
+638	20	6	phase de pool	Foxboro Stadium	\N	334	335	334
+639	20	6	phase de pool	Rose Bowl	\N	333	332	332
+640	20	6	phase de pool	Foxboro Stadium	\N	322	328	\N
+641	23	6	phase de pool	Civic Stadium	\N	330	335	335
+642	23	6	phase de pool	Jack Kent Cooke Stadium	\N	334	324	334
+643	23	6	phase de pool	Jack Kent Cooke Stadium	\N	322	336	336
+644	23	6	phase de pool	Civic Stadium	\N	325	328	325
+645	24	6	phase de pool	Soldier Field	\N	323	329	323
+646	24	6	phase de pool	Civic Stadium	\N	333	326	333
+647	24	6	phase de pool	Soldier Field	\N	337	332	337
+648	24	6	phase de pool	Civic Stadium	\N	327	331	327
+649	26	6	phase de pool	Giants Stadium	\N	324	335	335
+650	26	6	phase de pool	Giants Stadium	\N	325	322	325
+651	26	6	phase de pool	Soldier Field	\N	328	336	336
+652	26	6	phase de pool	Soldier Field	\N	334	330	334
+653	27	6	phase de pool	Jack Kent Cooke Stadium	\N	327	323	\N
+654	27	6	phase de pool	Jack Kent Cooke Stadium	\N	332	326	332
+655	27	6	phase de pool	Foxboro Stadium	\N	331	329	329
+656	27	6	phase de pool	Foxboro Stadium	\N	337	333	337
+657	30	6	1/4	Spartan Stadium	\N	325	335	325
+658	30	6	1/4	Spartan Stadium	\N	334	336	334
+659	1	7	1/4	Jack Kent Cooke Stadium	\N	337	327	337
+660	1	7	1/4	Jack Kent Cooke Stadium	\N	323	332	323
+661	4	7	1/2	Stanford Stadium	\N	337	323	337
+662	4	7	1/2	Foxboro Stadium	\N	334	325	325
+663	10	7	FinaleConsolation	Rose Bowl	\N	323	334	323
+664	10	7	Finale	Rose Bowl	\N	337	325	337
+665	31	5	phase de pool	Seoul World Cup Stadium	\N	348	360	360
+666	1	6	phase de pool	Niigata Stadium	\N	357	341	\N
+667	1	6	phase de pool	Ulsan Munsu Football Stadium	\N	369	345	345
+668	1	6	phase de pool	Sapporo Dome	\N	349	359	349
+669	2	6	phase de pool	Kashima Stadium	\N	338	353	338
+670	2	6	phase de pool	Busan Asiad Stadium	\N	354	362	\N
+671	2	6	phase de pool	Saitama Stadium	\N	347	365	\N
+672	2	6	phase de pool	Gwangju World Cup Stadium	\N	364	361	364
+673	3	6	phase de pool	Niigata Stadium	\N	344	352	352
+674	3	6	phase de pool	Ulsan Munsu Football Stadium	\N	340	367	340
+675	3	6	phase de pool	Sapporo Dome	\N	350	346	350
+676	4	6	phase de pool	Gwangju World Cup Stadium	\N	342	343	343
+677	4	6	phase de pool	Saitama Stadium	\N	351	339	\N
+678	4	6	phase de pool	Busan Asiad Stadium	\N	363	355	363
+679	5	6	phase de pool	Kobe Wing Stadium	\N	358	366	358
+680	5	6	phase de pool	Suwon World Cup Stadium	\N	368	356	368
+681	5	6	phase de pool	Kashima Stadium	\N	349	357	\N
+682	6	6	phase de pool	Daegu World Cup Stadium	\N	345	360	\N
+683	6	6	phase de pool	Saitama Stadium	\N	341	359	341
+684	6	6	phase de pool	Busan Asiad Stadium	\N	348	369	\N
+685	7	6	phase de pool	Kobe Wing Stadium	\N	365	353	365
+686	7	6	phase de pool	Jeonju World Cup Stadium	\N	364	354	364
+687	7	6	phase de pool	Sapporo Dome	\N	338	347	347
+688	8	6	phase de pool	Daegu World Cup Stadium	\N	362	361	362
+689	8	6	phase de pool	Kashima Stadium	\N	350	344	344
+690	8	6	phase de pool	Jeju World Cup Stadium	\N	340	342	340
+691	9	6	phase de pool	Miyagi Stadium	\N	352	346	352
+692	9	6	phase de pool	Incheon Munhak Stadium	\N	343	367	\N
+693	9	6	phase de pool	International Stadium Yokohama	\N	351	358	351
+694	10	6	phase de pool	Daegu World Cup Stadium	\N	363	368	\N
+695	10	6	phase de pool	Ōita Stadium	\N	366	339	\N
+696	10	6	phase de pool	Jeonju World Cup Stadium	\N	356	355	356
+697	11	6	phase de pool	Incheon Munhak Stadium	\N	345	348	345
+698	11	6	phase de pool	Suwon World Cup Stadium	\N	360	369	\N
+699	11	6	phase de pool	Shizuoka Stadium ECOPA	\N	341	349	349
+700	11	6	phase de pool	International Stadium Yokohama	\N	359	357	357
+701	12	6	phase de pool	Nagai Stadium	\N	353	347	\N
+702	12	6	phase de pool	Miyagi Stadium	\N	365	338	\N
+703	12	6	phase de pool	Jeju World Cup Stadium	\N	361	354	354
+704	12	6	phase de pool	Daejeon World Cup Stadium	\N	362	364	364
+705	13	6	phase de pool	Suwon World Cup Stadium	\N	343	340	340
+706	13	6	phase de pool	Seoul World Cup Stadium	\N	367	342	367
+707	13	6	phase de pool	International Stadium Yokohama	\N	346	344	346
+708	13	6	phase de pool	Ōita Stadium	\N	352	350	\N
+709	14	6	phase de pool	Shizuoka Stadium ECOPA	\N	339	358	339
+710	14	6	phase de pool	Nagai Stadium	\N	366	351	351
+711	14	6	phase de pool	Daejeon World Cup Stadium	\N	355	368	355
+712	14	6	phase de pool	Incheon Munhak Stadium	\N	356	363	363
+713	15	6	1/8	Jeju World Cup Stadium	\N	349	354	349
+714	15	6	1/8	Niigata Stadium	\N	345	347	347
+715	16	6	1/8	Ōita Stadium	\N	365	360	360
+716	16	6	1/8	Suwon World Cup Stadium	\N	364	357	364
+717	17	6	1/8	Jeonju World Cup Stadium	\N	352	368	368
+718	17	6	1/8	Kobe Wing Stadium	\N	340	339	340
+719	18	6	1/8	Miyagi Stadium	\N	351	367	367
+720	18	6	1/8	Daejeon World Cup Stadium	\N	363	350	363
+721	21	6	1/4	Shizuoka Stadium ECOPA	\N	347	340	340
+722	21	6	1/4	Ulsan Munsu Football Stadium	\N	349	368	349
+723	22	6	1/4	Gwangju World Cup Stadium	\N	364	363	363
+724	22	6	1/4	Nagai Stadium	\N	360	367	367
+725	25	6	1/2	Seoul World Cup Stadium	\N	349	363	349
+726	26	6	1/2	Saitama Stadium	\N	340	367	340
+727	29	6	FinaleConsolation	Daegu World Cup Stadium	\N	363	367	367
+728	30	6	Finale	International Stadium Yokohama	\N	349	340	340
+729	20	9	phase de pool	Lincoln Financial Field	\N	381	375	381
+730	20	9	phase de pool	Lincoln Financial Field	\N	379	380	380
+731	20	9	phase de pool	Columbus Crew Stadium	\N	376	373	376
+732	20	9	phase de pool	Columbus Crew Stadium	\N	378	370	378
+733	21	9	phase de pool	RFK Stadium	\N	385	384	385
+734	21	9	phase de pool	RFK Stadium	\N	372	383	372
+735	21	9	phase de pool	Home Depot Center	\N	371	382	382
+736	21	9	phase de pool	Home Depot Center	\N	374	377	374
+737	24	9	phase de pool	RFK Stadium	\N	381	372	372
+738	24	9	phase de pool	Columbus Crew Stadium	\N	376	378	376
+739	24	9	phase de pool	RFK Stadium	\N	375	383	375
+740	24	9	phase de pool	Columbus Crew Stadium	\N	373	370	373
+741	25	9	phase de pool	Home Depot Center	\N	377	382	382
+742	25	9	phase de pool	Lincoln Financial Field	\N	384	380	384
+743	25	9	phase de pool	Home Depot Center	\N	374	371	\N
+744	25	9	phase de pool	Lincoln Financial Field	\N	385	379	385
+745	27	9	phase de pool	RFK Stadium	\N	375	372	\N
+746	27	9	phase de pool	Gillette Stadium	\N	383	381	381
+747	27	9	phase de pool	RFK Stadium	\N	370	376	376
+748	27	9	phase de pool	Gillette Stadium	\N	373	378	373
+749	28	9	phase de pool	Columbus Crew Stadium	\N	384	379	384
+750	28	9	phase de pool	Columbus Crew Stadium	\N	380	385	385
+751	28	9	phase de pool	PGE Park	\N	377	371	377
+752	28	9	phase de pool	PGE Park	\N	374	382	374
+753	1	10	1/4	Gillette Stadium	\N	372	384	384
+754	1	10	1/4	Gillette Stadium	\N	385	381	385
+755	2	10	1/4	PGE Park	\N	376	382	376
+756	2	10	1/4	PGE Park	\N	374	373	373
+757	5	10	1/2	PGE Park	\N	385	376	376
+758	5	10	1/2	PGE Park	\N	384	373	384
+759	11	10	FinaleConsolation	Home Depot Center	\N	385	373	385
+760	12	10	Finale	Home Depot Center	\N	376	384	376
+761	9	6	phase de pool	Allianz Arena	\N	396	390	396
+762	9	6	phase de pool	Arena AufShalke	\N	405	393	393
+763	10	6	phase de pool	Waldstadion	\N	394	404	394
+764	10	6	phase de pool	Westfalenstadion	\N	414	411	\N
+765	10	6	phase de pool	Volksparkstadion	\N	387	400	387
+766	11	6	phase de pool	Zentralstadion	\N	408	403	403
+767	11	6	phase de pool	Frankenstadion	\N	402	398	402
+768	11	6	phase de pool	RheinEnergieStadion	\N	386	406	406
+769	12	6	phase de pool	Fritz-Walter-Stadion	\N	388	401	388
+770	12	6	phase de pool	Arena AufShalke	\N	417	392	392
+771	12	6	phase de pool	Niedersachsenstadion	\N	399	397	399
+772	13	6	phase de pool	Waldstadion	\N	409	413	409
+773	13	6	phase de pool	Neckarstadion	\N	395	412	\N
+774	13	6	phase de pool	Olympiastadion	\N	389	391	389
+775	14	6	phase de pool	Zentralstadion	\N	410	416	410
+776	14	6	phase de pool	Allianz Arena	\N	415	407	\N
+777	14	6	phase de pool	Westfalenstadion	\N	396	405	396
+778	15	6	phase de pool	Volksparkstadion	\N	393	390	393
+779	15	6	phase de pool	Frankenstadion	\N	394	414	394
+780	15	6	phase de pool	Olympiastadion	\N	411	404	411
+781	16	6	phase de pool	Arena AufShalke	\N	387	408	387
+782	16	6	phase de pool	Neckarstadion	\N	403	400	403
+783	16	6	phase de pool	Niedersachsenstadion	\N	402	386	\N
+784	17	6	phase de pool	Waldstadion	\N	406	398	406
+785	17	6	phase de pool	RheinEnergieStadion	\N	392	397	397
+786	17	6	phase de pool	Fritz-Walter-Stadion	\N	399	417	\N
+787	18	6	phase de pool	Frankenstadion	\N	401	391	\N
+788	18	6	phase de pool	Allianz Arena	\N	389	388	389
+789	18	6	phase de pool	Zentralstadion	\N	395	409	\N
+790	19	6	phase de pool	Westfalenstadion	\N	413	412	412
+791	19	6	phase de pool	Volksparkstadion	\N	407	416	416
+792	19	6	phase de pool	Neckarstadion	\N	410	415	410
+793	20	6	phase de pool	Niedersachsenstadion	\N	390	405	405
+794	20	6	phase de pool	Olympiastadion	\N	393	396	396
+795	20	6	phase de pool	Fritz-Walter-Stadion	\N	404	414	404
+796	20	6	phase de pool	RheinEnergieStadion	\N	411	394	\N
+797	21	6	phase de pool	Zentralstadion	\N	398	386	\N
+798	21	6	phase de pool	Arena AufShalke	\N	406	402	406
+799	21	6	phase de pool	Allianz Arena	\N	400	408	400
+800	21	6	phase de pool	Waldstadion	\N	403	387	\N
+801	22	6	phase de pool	Volksparkstadion	\N	392	399	399
+802	22	6	phase de pool	Frankenstadion	\N	397	417	397
+803	22	6	phase de pool	Neckarstadion	\N	391	388	\N
+804	22	6	phase de pool	Westfalenstadion	\N	401	389	389
+805	23	6	phase de pool	Fritz-Walter-Stadion	\N	407	410	410
+806	23	6	phase de pool	Olympiastadion	\N	416	415	416
+807	23	6	phase de pool	Niedersachsenstadion	\N	412	409	412
+808	23	6	phase de pool	RheinEnergieStadion	\N	413	395	395
+809	24	6	1/8	Allianz Arena	\N	396	411	396
+810	24	6	1/8	Zentralstadion	\N	387	402	387
+811	25	6	1/8	Neckarstadion	\N	394	393	394
+812	25	6	1/8	Frankenstadion	\N	406	403	406
+813	26	6	1/8	Fritz-Walter-Stadion	\N	399	388	399
+814	26	6	1/8	RheinEnergieStadion	\N	412	416	416
+815	27	6	1/8	Westfalenstadion	\N	389	397	389
+816	27	6	1/8	Niedersachsenstadion	\N	410	395	395
+817	30	6	1/4	Olympiastadion	\N	396	387	396
+818	30	6	1/4	Volksparkstadion	\N	399	416	399
+819	1	7	1/4	Arena AufShalke	\N	394	406	406
+820	1	7	1/4	Waldstadion	\N	389	395	395
+821	4	7	1/2	Westfalenstadion	\N	396	399	399
+822	5	7	1/2	Allianz Arena	\N	406	395	395
+823	8	7	FinaleConsolation	Neckarstadion	\N	396	406	396
+824	9	7	Finale	Olympiastadion	\N	399	395	399
+825	10	9	phase de pool	Hongkou Football Stadium	\N	425	418	425
+826	11	9	phase de pool	Chengdu Sports Center	\N	433	430	\N
+827	11	9	phase de pool	Hongkou Football Stadium	\N	427	424	\N
+828	11	9	phase de pool	Chengdu Sports Center	\N	429	432	\N
+829	12	9	phase de pool	Yellow Dragon Sports Center	\N	426	419	419
+830	12	9	phase de pool	Wuhan Sports Center	\N	428	420	420
+831	12	9	phase de pool	Yellow Dragon Sports Center	\N	431	421	431
+832	12	9	phase de pool	Wuhan Sports Center	\N	422	423	422
+833	14	9	phase de pool	Hongkou Football Stadium	\N	418	427	427
+834	14	9	phase de pool	Chengdu Sports Center	\N	432	433	433
+835	14	9	phase de pool	Hongkou Football Stadium	\N	424	425	\N
+836	14	9	phase de pool	Chengdu Sports Center	\N	430	429	430
+837	15	9	phase de pool	Yellow Dragon Sports Center	\N	421	426	421
+838	15	9	phase de pool	Wuhan Sports Center	\N	423	428	423
+839	15	9	phase de pool	Yellow Dragon Sports Center	\N	419	431	\N
+840	15	9	phase de pool	Wuhan Sports Center	\N	420	422	420
+841	17	9	phase de pool	Chengdu Sports Center	\N	424	418	424
+842	17	9	phase de pool	Yellow Dragon Sports Center	\N	425	427	425
+843	18	9	phase de pool	Hongkou Football Stadium	\N	429	433	433
+844	18	9	phase de pool	Tianjin Olympic Center	\N	430	432	432
+845	20	9	phase de pool	Yellow Dragon Sports Center	\N	419	421	\N
+846	20	9	phase de pool	Yellow Dragon Sports Center	\N	431	426	431
+847	20	9	phase de pool	Yellow Dragon Sports Center	\N	420	423	420
+848	20	9	phase de pool	Tianjin Olympic Center	\N	422	428	422
+849	22	9	1/4	Wuhan Sports Center	\N	425	430	425
+850	22	9	1/4	Tianjin Olympic Center	\N	433	424	433
+851	23	9	1/4	Wuhan Sports Center	\N	431	422	431
+852	23	9	1/4	Tianjin Olympic Center	\N	420	419	420
+853	26	9	1/2	Tianjin Olympic Center	\N	425	431	425
+854	27	9	1/2	Yellow Dragon Sports Center	\N	433	420	420
+855	30	9	FinaleConsolation	Hongkou Football Stadium	\N	431	433	433
+856	30	9	Finale	Hongkou Football Stadium	\N	425	420	425
+857	11	6	phase de pool	Soccer City	\N	460	450	\N
+858	11	6	phase de pool	Cape Town Stadium	\N	465	442	\N
+859	12	6	phase de pool	Nelson Mandela Bay Stadium	\N	461	445	461
+860	12	6	phase de pool	Ellis Park Stadium	\N	435	453	435
+861	12	6	phase de pool	Royal Bafokeng Stadium	\N	441	464	\N
+862	13	6	phase de pool	Peter Mokaba Stadium	\N	434	459	459
+863	13	6	phase de pool	Loftus Versfeld Stadium	\N	457	444	444
+864	13	6	phase de pool	Moses Mabhida Stadium	\N	443	436	443
+865	14	6	phase de pool	Soccer City	\N	451	440	451
+866	14	6	phase de pool	Free State Stadium	\N	449	438	449
+867	14	6	phase de pool	Cape Town Stadium	\N	447	455	\N
+868	15	6	phase de pool	Royal Bafokeng Stadium	\N	452	458	\N
+869	15	6	phase de pool	Nelson Mandela Bay Stadium	\N	448	456	\N
+870	15	6	phase de pool	Ellis Park Stadium	\N	437	454	437
+871	16	6	phase de pool	Mbombela Stadium	\N	446	439	439
+872	16	6	phase de pool	Moses Mabhida Stadium	\N	462	463	463
+873	16	6	phase de pool	Loftus Versfeld Stadium	\N	460	465	465
+874	17	6	phase de pool	Soccer City	\N	435	461	435
+875	17	6	phase de pool	Free State Stadium	\N	445	453	445
+876	17	6	phase de pool	Peter Mokaba Stadium	\N	442	450	450
+877	18	6	phase de pool	Nelson Mandela Bay Stadium	\N	443	457	457
+878	18	6	phase de pool	Ellis Park Stadium	\N	459	464	\N
+879	18	6	phase de pool	Cape Town Stadium	\N	441	434	\N
+880	19	6	phase de pool	Moses Mabhida Stadium	\N	451	449	451
+881	19	6	phase de pool	Royal Bafokeng Stadium	\N	444	436	\N
+882	19	6	phase de pool	Loftus Versfeld Stadium	\N	438	440	440
+883	20	6	phase de pool	Free State Stadium	\N	458	455	455
+884	20	6	phase de pool	Mbombela Stadium	\N	447	452	\N
+885	20	6	phase de pool	Soccer City	\N	437	448	437
+886	21	6	phase de pool	Cape Town Stadium	\N	456	454	456
+887	21	6	phase de pool	Nelson Mandela Bay Stadium	\N	439	463	439
+888	21	6	phase de pool	Ellis Park Stadium	\N	462	446	462
+889	22	6	phase de pool	Free State Stadium	\N	442	460	460
+890	22	6	phase de pool	Royal Bafokeng Stadium	\N	450	465	465
+891	22	6	phase de pool	Peter Mokaba Stadium	\N	445	435	435
+892	22	6	phase de pool	Moses Mabhida Stadium	\N	453	461	\N
+893	23	6	phase de pool	Nelson Mandela Bay Stadium	\N	459	441	441
+894	23	6	phase de pool	Loftus Versfeld Stadium	\N	464	434	464
+895	23	6	phase de pool	Mbombela Stadium	\N	436	457	436
+896	23	6	phase de pool	Soccer City	\N	444	443	443
+897	24	6	phase de pool	Peter Mokaba Stadium	\N	455	452	\N
+898	24	6	phase de pool	Ellis Park Stadium	\N	458	447	458
+899	24	6	phase de pool	Cape Town Stadium	\N	438	451	451
+900	24	6	phase de pool	Royal Bafokeng Stadium	\N	440	449	449
+901	25	6	phase de pool	Mbombela Stadium	\N	454	448	448
+902	25	6	phase de pool	Moses Mabhida Stadium	\N	456	437	\N
+903	25	6	phase de pool	Loftus Versfeld Stadium	\N	439	462	462
+904	25	6	phase de pool	Free State Stadium	\N	463	446	\N
+905	26	6	1/8	Nelson Mandela Bay Stadium	\N	465	461	465
+906	26	6	1/8	Royal Bafokeng Stadium	\N	464	444	444
+907	27	6	1/8	Free State Stadium	\N	443	441	443
+908	27	6	1/8	Soccer City	\N	435	450	435
+909	28	6	1/8	Moses Mabhida Stadium	\N	451	458	451
+910	28	6	1/8	Ellis Park Stadium	\N	437	439	437
+911	29	6	1/8	Loftus Versfeld Stadium	\N	455	449	455
+912	29	6	1/8	Cape Town Stadium	\N	462	456	462
+913	2	7	1/4	Nelson Mandela Bay Stadium	\N	451	437	451
+914	2	7	1/4	Soccer City	\N	465	444	465
+915	3	7	1/4	Cape Town Stadium	\N	435	443	443
+916	3	7	1/4	Ellis Park Stadium	\N	455	462	462
+917	6	7	1/2	Cape Town Stadium	\N	465	451	451
+918	7	7	1/2	Moses Mabhida Stadium	\N	443	462	462
+919	10	7	FinaleConsolation	Nelson Mandela Bay Stadium	\N	465	443	443
+920	11	7	Finale	Soccer City	\N	451	462	462
+921	26	6	phase de pool	Rhein-Neckar-Arena	\N	477	472	472
+922	26	6	phase de pool	Olympiastadion	\N	473	468	473
+923	27	6	phase de pool	Ruhrstadion	\N	474	476	474
+924	27	6	phase de pool	Volkswagen Arena	\N	475	470	\N
+925	28	6	phase de pool	BayArena	\N	469	480	480
+926	28	6	phase de pool	Rudolf-Harbig-Stadion	\N	481	478	481
+927	29	6	phase de pool	Impuls Arena	\N	479	471	479
+928	29	6	phase de pool	Borussia-Park	\N	467	466	467
+929	30	6	phase de pool	Ruhrstadion	\N	468	472	472
+930	30	6	phase de pool	Waldstadion	\N	473	477	473
+931	1	7	phase de pool	BayArena	\N	474	475	474
+932	1	7	phase de pool	Rudolf-Harbig-Stadion	\N	476	470	470
+933	2	7	phase de pool	Impuls Arena	\N	478	480	480
+934	2	7	phase de pool	Rhein-Neckar-Arena	\N	481	469	481
+935	3	7	phase de pool	Ruhrstadion	\N	466	471	466
+936	3	7	phase de pool	Volkswagen Arena	\N	467	479	467
+937	5	7	phase de pool	Impuls Arena	\N	470	474	470
+938	5	7	phase de pool	Rhein-Neckar-Arena	\N	476	475	\N
+939	5	7	phase de pool	Rudolf-Harbig-Stadion	\N	468	477	477
+940	5	7	phase de pool	Borussia-Park	\N	472	473	473
+941	6	7	phase de pool	BayArena	\N	466	479	466
+942	6	7	phase de pool	Waldstadion	\N	471	467	467
+943	6	7	phase de pool	Ruhrstadion	\N	478	469	\N
+944	6	7	phase de pool	Volkswagen Arena	\N	480	481	480
+945	9	7	1/4	BayArena	\N	470	472	472
+946	9	7	1/4	Volkswagen Arena	\N	473	474	474
+947	10	7	1/4	Impuls Arena	\N	480	466	480
+948	10	7	1/4	Rudolf-Harbig-Stadion	\N	467	481	481
+949	13	7	1/2	Borussia-Park	\N	472	481	481
+950	13	7	1/2	Waldstadion	\N	474	480	474
+951	16	7	FinaleConsolation	Rhein-Neckar-Arena	\N	480	472	480
+952	17	7	Finale	Waldstadion	\N	474	481	474
+953	12	6	phase de pool	Arena Corinthians	\N	487	492	487
+954	13	6	phase de pool	Arena das Dunas	\N	504	488	504
+955	13	6	phase de pool	Arena Fonte Nova	\N	510	505	505
+956	13	6	phase de pool	Arena Pantanal	\N	489	484	489
+957	14	6	phase de pool	Estádio Mineirão	\N	490	498	490
+958	14	6	phase de pool	Estádio Castelão	\N	513	491	491
+959	14	6	phase de pool	Arena da Amazônia	\N	494	501	501
+960	14	6	phase de pool	Arena Pernambuco	\N	502	503	502
+961	15	6	phase de pool	Estádio Nacional	\N	511	493	511
+962	15	6	phase de pool	Estádio Beira-Rio	\N	495	499	495
+963	15	6	phase de pool	Estádio do Maracanã	\N	483	486	483
+964	16	6	phase de pool	Arena Fonte Nova	\N	496	507	496
+965	16	6	phase de pool	Arena da Baixada	\N	500	506	\N
+966	16	6	phase de pool	Arena das Dunas	\N	497	512	512
+967	17	6	phase de pool	Estádio Mineirão	\N	485	482	485
+968	17	6	phase de pool	Estádio Castelão	\N	487	504	\N
+970	18	6	phase de pool	Estádio Beira-Rio	\N	484	505	505
+971	18	6	phase de pool	Estádio do Maracanã	\N	510	489	489
+972	18	6	phase de pool	Arena da Amazônia	\N	488	492	492
+973	19	6	phase de pool	Estádio Nacional	\N	490	502	490
+974	19	6	phase de pool	Arena Corinthians	\N	513	494	513
+975	19	6	phase de pool	Arena das Dunas	\N	503	498	\N
+976	20	6	phase de pool	Arena Pernambuco	\N	501	491	491
+977	20	6	phase de pool	Arena Fonte Nova	\N	511	495	495
+978	20	6	phase de pool	Arena da Baixada	\N	499	493	493
+979	21	6	phase de pool	Estádio Mineirão	\N	483	500	483
+980	21	6	phase de pool	Estádio Castelão	\N	496	497	\N
+981	21	6	phase de pool	Arena Pantanal	\N	506	486	506
+982	22	6	phase de pool	Estádio do Maracanã	\N	485	508	485
+983	22	6	phase de pool	Estádio Beira-Rio	\N	509	482	482
+984	22	6	phase de pool	Arena da Amazônia	\N	512	507	\N
+985	23	6	phase de pool	Arena da Baixada	\N	484	510	510
+986	23	6	phase de pool	Arena Corinthians	\N	505	489	505
+987	23	6	phase de pool	Estádio Nacional	\N	488	487	487
+988	23	6	phase de pool	Arena Pernambuco	\N	492	504	504
+989	24	6	phase de pool	Estádio Mineirão	\N	491	494	\N
+990	24	6	phase de pool	Arena das Dunas	\N	501	513	513
+991	24	6	phase de pool	Arena Pantanal	\N	503	490	490
+992	24	6	phase de pool	Estádio Castelão	\N	498	502	498
+993	25	6	phase de pool	Arena Fonte Nova	\N	486	500	486
+994	25	6	phase de pool	Estádio Beira-Rio	\N	506	483	483
+995	25	6	phase de pool	Arena da Amazônia	\N	499	511	511
+996	25	6	phase de pool	Estádio do Maracanã	\N	493	495	\N
+997	26	6	phase de pool	Estádio Nacional	\N	507	497	507
+998	26	6	phase de pool	Arena Pernambuco	\N	512	496	496
+999	26	6	phase de pool	Arena da Baixada	\N	482	508	\N
+1000	26	6	phase de pool	Arena Corinthians	\N	509	485	485
+1001	28	6	1/8	Estádio Mineirão	\N	487	489	487
+1002	28	6	1/8	Estádio do Maracanã	\N	490	513	490
+1003	29	6	1/8	Estádio Castelão	\N	505	504	505
+1004	29	6	1/8	Arena Pernambuco	\N	491	498	491
+1005	30	6	1/8	Estádio Nacional	\N	495	506	495
+1006	30	6	1/8	Estádio Beira-Rio	\N	496	482	496
+1007	1	7	1/8	Arena Corinthians	\N	483	511	483
+1008	1	7	1/8	Arena Fonte Nova	\N	485	512	485
+1009	4	7	1/4	Estádio do Maracanã	\N	495	496	496
+1010	4	7	1/4	Estádio Castelão	\N	487	490	487
+1011	5	7	1/4	Estádio Nacional	\N	483	485	483
+1012	5	7	1/4	Arena Fonte Nova	\N	505	491	505
+1013	8	7	1/2	Estádio Mineirão	\N	487	496	496
+1014	9	7	1/2	Arena Corinthians	\N	505	483	483
+1015	12	7	FinaleConsolation	Estádio Nacional	\N	487	505	505
+1016	13	7	Finale	Estádio do Maracanã	\N	496	483	496
+1017	6	6	phase de pool	Commonwealth Stadium	\N	517	518	517
+1018	6	6	phase de pool	Commonwealth Stadium	\N	529	528	528
+1019	7	6	phase de pool	TD Place Stadium	\N	531	536	531
+1020	7	6	phase de pool	TD Place Stadium	\N	524	525	524
+1021	8	6	phase de pool	Investors Group Field	\N	534	530	\N
+1022	8	6	phase de pool	BC Place	\N	516	521	516
+1023	8	6	phase de pool	Investors Group Field	\N	537	514	537
+1024	8	6	phase de pool	BC Place	\N	526	535	526
+1025	9	6	phase de pool	Moncton Stadium	\N	523	522	523
+1026	9	6	phase de pool	Olympic Stadium	\N	533	520	\N
+1027	9	6	phase de pool	Moncton Stadium	\N	519	527	\N
+1028	9	6	phase de pool	Olympic Stadium	\N	515	532	515
+1029	11	6	phase de pool	Commonwealth Stadium	\N	518	528	518
+1030	11	6	phase de pool	TD Place Stadium	\N	524	531	\N
+1031	11	6	phase de pool	Commonwealth Stadium	\N	517	529	\N
+1032	11	6	phase de pool	TD Place Stadium	\N	525	536	536
+1033	12	6	phase de pool	BC Place	\N	535	521	535
+1034	12	6	phase de pool	Investors Group Field	\N	514	530	514
+1035	12	6	phase de pool	BC Place	\N	526	516	526
+1036	12	6	phase de pool	Investors Group Field	\N	537	534	\N
+1037	13	6	phase de pool	Moncton Stadium	\N	523	519	519
+1038	13	6	phase de pool	Olympic Stadium	\N	515	533	515
+1039	13	6	phase de pool	Moncton Stadium	\N	522	527	522
+1040	13	6	phase de pool	Olympic Stadium	\N	532	520	\N
+1041	15	6	phase de pool	Investors Group Field	\N	536	524	524
+1042	15	6	phase de pool	Moncton Stadium	\N	525	531	531
+1043	15	6	phase de pool	Investors Group Field	\N	518	529	\N
+1044	15	6	phase de pool	Olympic Stadium	\N	528	517	\N
+1045	16	6	phase de pool	Commonwealth Stadium	\N	535	516	516
+1046	16	6	phase de pool	Investors Group Field	\N	521	526	526
+1047	16	6	phase de pool	BC Place	\N	530	537	537
+1048	16	6	phase de pool	Commonwealth Stadium	\N	514	534	\N
+1049	17	6	phase de pool	Olympic Stadium	\N	522	519	522
+1050	17	6	phase de pool	TD Place Stadium	\N	527	523	523
+1051	17	6	phase de pool	TD Place Stadium	\N	532	533	532
+1052	17	6	phase de pool	Moncton Stadium	\N	520	515	515
+1053	20	6	1/8	TD Place Stadium	\N	524	534	524
+1054	20	6	1/8	Commonwealth Stadium	\N	518	516	518
+1055	21	6	1/8	Moncton Stadium	\N	515	514	514
+1056	21	6	1/8	Olympic Stadium	\N	523	532	523
+1057	21	6	1/8	BC Place	\N	517	535	517
+1058	22	6	1/8	TD Place Stadium	\N	531	522	522
+1059	22	6	1/8	Commonwealth Stadium	\N	537	519	537
+1060	23	6	1/8	BC Place	\N	526	528	526
+1061	26	6	1/4	Olympic Stadium	\N	524	523	524
+1062	26	6	1/4	TD Place Stadium	\N	518	537	537
+1063	27	6	1/4	Commonwealth Stadium	\N	514	526	526
+1064	27	6	1/4	BC Place	\N	522	517	522
+1065	30	6	1/2	Olympic Stadium	\N	537	524	537
+1066	1	7	1/2	Commonwealth Stadium	\N	526	522	526
+1067	4	7	FinaleConsolation	Commonwealth Stadium	\N	524	522	522
+1068	5	7	Finale	BC Place	\N	537	526	537
+1069	14	6	phase de pool	Luzhniki Stadium	\N	560	561	560
+1070	15	6	phase de pool	Central Stadium	\N	546	569	569
+1071	15	6	phase de pool	Krestovsky Stadium	\N	554	551	551
+1072	15	6	phase de pool	Fisht Olympic Stadium	\N	559	565	\N
+1073	16	6	phase de pool	Kazan Arena	\N	548	539	548
+1074	16	6	phase de pool	Otkritie Arena	\N	538	550	\N
+1075	16	6	phase de pool	Mordovia Arena	\N	557	545	545
+1076	16	6	phase de pool	Kaliningrad Stadium	\N	544	555	544
+1077	17	6	phase de pool	Samara Arena	\N	543	563	563
+1078	17	6	phase de pool	Luzhniki Stadium	\N	549	553	553
+1079	17	6	phase de pool	Rostov Arena	\N	541	567	\N
+1080	18	6	phase de pool	Nizhny Novgorod Stadium	\N	566	564	566
+1081	18	6	phase de pool	Fisht Olympic Stadium	\N	540	556	540
+1082	18	6	phase de pool	Volgograd Arena	\N	568	547	547
+1083	19	6	phase de pool	Mordovia Arena	\N	542	552	552
+1084	19	6	phase de pool	Otkritie Arena	\N	558	562	562
+1085	19	6	phase de pool	Krestovsky Stadium	\N	560	546	560
+1086	20	6	phase de pool	Luzhniki Stadium	\N	559	554	559
+1087	20	6	phase de pool	Rostov Arena	\N	569	561	569
+1088	20	6	phase de pool	Kazan Arena	\N	551	565	565
+1089	21	6	phase de pool	Samara Arena	\N	545	539	\N
+1090	21	6	phase de pool	Central Stadium	\N	548	557	548
+1091	21	6	phase de pool	Nizhny Novgorod Stadium	\N	538	544	544
+1092	22	6	phase de pool	Krestovsky Stadium	\N	541	543	541
+1093	22	6	phase de pool	Volgograd Arena	\N	555	550	555
+1094	22	6	phase de pool	Kaliningrad Stadium	\N	563	567	567
+1095	23	6	phase de pool	Otkritie Arena	\N	540	568	540
+1096	23	6	phase de pool	Rostov Arena	\N	564	553	553
+1097	23	6	phase de pool	Fisht Olympic Stadium	\N	549	566	549
+1098	24	6	phase de pool	Nizhny Novgorod Stadium	\N	547	556	547
+1099	24	6	phase de pool	Central Stadium	\N	552	562	\N
+1100	24	6	phase de pool	Kazan Arena	\N	558	542	542
+1101	25	6	phase de pool	Volgograd Arena	\N	561	546	561
+1102	25	6	phase de pool	Samara Arena	\N	569	560	569
+1103	25	6	phase de pool	Kaliningrad Stadium	\N	565	554	\N
+1104	25	6	phase de pool	Mordovia Arena	\N	551	559	\N
+1105	26	6	phase de pool	Fisht Olympic Stadium	\N	539	557	557
+1106	26	6	phase de pool	Luzhniki Stadium	\N	545	548	\N
+1107	26	6	phase de pool	Rostov Arena	\N	550	544	544
+1108	26	6	phase de pool	Krestovsky Stadium	\N	555	538	538
+1109	27	6	phase de pool	Kazan Arena	\N	564	549	564
+1110	27	6	phase de pool	Central Stadium	\N	553	566	566
+1111	27	6	phase de pool	Otkritie Arena	\N	563	541	541
+1112	27	6	phase de pool	Nizhny Novgorod Stadium	\N	567	543	\N
+1113	28	6	phase de pool	Volgograd Arena	\N	552	558	558
+1114	28	6	phase de pool	Samara Arena	\N	562	542	542
+1115	28	6	phase de pool	Kaliningrad Stadium	\N	547	540	540
+1116	28	6	phase de pool	Mordovia Arena	\N	556	568	568
+1117	30	6	1/8	Kazan Arena	\N	548	538	548
+1118	30	6	1/8	Fisht Olympic Stadium	\N	569	559	569
+1119	1	7	1/8	Luzhniki Stadium	\N	565	560	560
+1120	1	7	1/8	Nizhny Novgorod Stadium	\N	544	545	544
+1121	2	7	1/8	Samara Arena	\N	541	553	541
+1122	2	7	1/8	Rostov Arena	\N	540	552	540
+1123	3	7	1/8	Krestovsky Stadium	\N	566	567	566
+1124	3	7	1/8	Otkritie Arena	\N	542	547	547
+1125	6	7	1/4	Nizhny Novgorod Stadium	\N	569	548	548
+1126	6	7	1/4	Kazan Arena	\N	541	540	540
+1127	7	7	1/4	Samara Arena	\N	566	547	547
+1128	7	7	1/4	Fisht Olympic Stadium	\N	560	544	544
+1129	10	7	1/2	Krestovsky Stadium	\N	548	540	548
+1130	11	7	1/2	Luzhniki Stadium	\N	544	547	544
+1131	14	7	FinaleConsolation	Krestovsky Stadium	\N	540	547	540
+1132	15	7	Finale	Luzhniki Stadium	\N	548	544	548
+1133	7	6	phase de pool	Parc des Princes	\N	578	589	578
+1134	8	6	phase de pool	Roazhon Park	\N	579	576	579
+1135	8	6	phase de pool	Stade Océane	\N	590	588	590
+1136	8	6	phase de pool	Stade Auguste-Delaune	\N	586	585	586
+1137	9	6	phase de pool	Stade du Hainaut	\N	571	580	580
+1138	9	6	phase de pool	Stade des Alpes	\N	572	581	572
+1139	9	6	phase de pool	Allianz Riviera	\N	577	587	577
+1140	10	6	phase de pool	Parc des Princes	\N	570	582	\N
+1141	10	6	phase de pool	Stade de la Mosson	\N	574	573	574
+1142	11	6	phase de pool	Stade Océane	\N	584	583	583
+1143	11	6	phase de pool	Roazhon Park	\N	575	591	591
+1144	11	6	phase de pool	Stade Auguste-Delaune	\N	593	592	593
+1145	12	6	phase de pool	Stade des Alpes	\N	585	589	585
+1146	12	6	phase de pool	Stade du Hainaut	\N	579	590	579
+1147	12	6	phase de pool	Allianz Riviera	\N	578	586	578
+1148	13	6	phase de pool	Stade de la Mosson	\N	571	572	571
+1149	13	6	phase de pool	Parc des Princes	\N	588	576	576
+1150	14	6	phase de pool	Roazhon Park	\N	582	587	582
+1151	14	6	phase de pool	Stade Auguste-Delaune	\N	581	580	580
+1152	14	6	phase de pool	Stade Océane	\N	577	570	577
+1153	15	6	phase de pool	Stade du Hainaut	\N	583	573	583
+1154	15	6	phase de pool	Stade des Alpes	\N	574	584	574
+1155	16	6	phase de pool	Allianz Riviera	\N	591	592	591
+1156	16	6	phase de pool	Parc des Princes	\N	593	575	593
+1157	17	6	phase de pool	Stade Océane	\N	576	590	\N
+1158	17	6	phase de pool	Stade de la Mosson	\N	588	579	579
+1159	17	6	phase de pool	Roazhon Park	\N	585	578	578
+1160	17	6	phase de pool	Stade Auguste-Delaune	\N	589	586	586
+1161	18	6	phase de pool	Stade du Hainaut	\N	580	572	572
+1162	18	6	phase de pool	Stade des Alpes	\N	581	571	571
+1163	19	6	phase de pool	Allianz Riviera	\N	582	577	577
+1164	19	6	phase de pool	Parc des Princes	\N	587	570	\N
+1165	20	6	phase de pool	Stade de la Mosson	\N	573	584	573
+1166	20	6	phase de pool	Stade Auguste-Delaune	\N	583	574	583
+1167	20	6	phase de pool	Stade Océane	\N	591	593	593
+1168	20	6	phase de pool	Roazhon Park	\N	592	575	575
+1169	22	6	1/8	Stade des Alpes	\N	579	585	579
+1170	22	6	1/8	Allianz Riviera	\N	586	571	586
+1171	23	6	1/8	Stade du Hainaut	\N	577	573	577
+1172	23	6	1/8	Stade Océane	\N	578	572	578
+1173	24	6	1/8	Stade Auguste-Delaune	\N	590	593	593
+1174	24	6	1/8	Parc des Princes	\N	591	574	591
+1175	25	6	1/8	Stade de la Mosson	\N	580	576	580
+1176	25	6	1/8	Roazhon Park	\N	583	582	583
+1177	27	6	1/4	Stade Océane	\N	586	577	577
+1178	28	6	1/4	Parc des Princes	\N	578	593	593
+1179	29	6	1/4	Stade du Hainaut	\N	580	583	583
+1180	29	6	1/4	Roazhon Park	\N	579	591	591
+1181	2	7	1/2	Parc Olympique Lyonnais	\N	577	593	593
+1182	3	7	1/2	Parc Olympique Lyonnais	\N	583	591	583
+1183	6	7	FinaleConsolation	Allianz Riviera	\N	577	591	591
+1184	7	7	Finale	Parc Olympique Lyonnais	\N	593	583	593
+1185	20	11	phase de pool	Al Bayt Stadium	\N	615	603	603
+1186	21	11	phase de pool	Khalifa International Stadium	\N	604	608	604
+1187	21	11	phase de pool	Al Thumama Stadium	\N	617	612	612
+1188	21	11	phase de pool	Ahmad bin Ali Stadium	\N	623	625	\N
+1189	22	11	phase de pool	Lusail Stadium	\N	594	616	616
+1190	22	11	phase de pool	Education City Stadium	\N	602	622	\N
+1191	22	11	phase de pool	Stadium 974	\N	610	613	\N
+1192	22	11	phase de pool	Al Janoub Stadium	\N	605	595	605
+1193	23	11	phase de pool	Al Bayt Stadium	\N	611	601	\N
+1194	23	11	phase de pool	Khalifa International Stadium	\N	606	609	609
+1195	23	11	phase de pool	Al Thumama Stadium	\N	620	600	620
+1196	23	11	phase de pool	Ahmad bin Ali Stadium	\N	596	599	596
+1197	24	11	phase de pool	Al Janoub Stadium	\N	621	598	621
+1198	24	11	phase de pool	Education City Stadium	\N	624	619	\N
+1199	24	11	phase de pool	Stadium 974	\N	614	607	614
+1200	24	11	phase de pool	Lusail Stadium	\N	597	618	597
+1201	25	11	phase de pool	Ahmad bin Ali Stadium	\N	625	608	608
+1202	25	11	phase de pool	Al Thumama Stadium	\N	615	617	617
+1203	25	11	phase de pool	Khalifa International Stadium	\N	612	603	\N
+1204	25	11	phase de pool	Al Bayt Stadium	\N	604	623	\N
+1205	26	11	phase de pool	Al Janoub Stadium	\N	622	595	595
+1206	26	11	phase de pool	Education City Stadium	\N	613	616	613
+1207	26	11	phase de pool	Stadium 974	\N	605	602	605
+1208	26	11	phase de pool	Lusail Stadium	\N	594	610	594
+1209	27	11	phase de pool	Ahmad bin Ali Stadium	\N	609	600	600
+1210	27	11	phase de pool	Al Thumama Stadium	\N	596	611	611
+1211	27	11	phase de pool	Khalifa International Stadium	\N	601	599	601
+1212	27	11	phase de pool	Al Bayt Stadium	\N	620	606	\N
+1213	28	11	phase de pool	Al Janoub Stadium	\N	598	618	\N
+1214	28	11	phase de pool	Education City Stadium	\N	619	607	607
+1215	28	11	phase de pool	Stadium 974	\N	597	621	597
+1216	28	11	phase de pool	Lusail Stadium	\N	614	624	614
+1217	29	11	phase de pool	Khalifa International Stadium	\N	603	617	617
+1218	29	11	phase de pool	Al Bayt Stadium	\N	612	615	612
+1219	29	11	phase de pool	Al Thumama Stadium	\N	608	623	623
+1220	29	11	phase de pool	Ahmad bin Ali Stadium	\N	625	604	604
+1221	30	11	phase de pool	Al Janoub Stadium	\N	595	602	595
+1222	30	11	phase de pool	Education City Stadium	\N	622	605	622
+1223	30	11	phase de pool	Stadium 974	\N	613	594	594
+1224	30	11	phase de pool	Lusail Stadium	\N	616	610	610
+1225	1	12	phase de pool	Al Thumama Stadium	\N	599	611	611
+1226	1	12	phase de pool	Ahmad bin Ali Stadium	\N	601	596	\N
+1227	1	12	phase de pool	Al Bayt Stadium	\N	600	606	606
+1228	1	12	phase de pool	Khalifa International Stadium	\N	609	620	609
+1229	2	12	phase de pool	Al Janoub Stadium	\N	607	624	624
+1230	2	12	phase de pool	Education City Stadium	\N	619	614	619
+1231	2	12	phase de pool	Lusail Stadium	\N	598	597	598
+1232	2	12	phase de pool	Stadium 974	\N	618	621	621
+1233	3	12	1/8	Khalifa International Stadium	\N	612	623	612
+1234	3	12	1/8	Ahmad bin Ali Stadium	\N	594	595	594
+1235	4	12	1/8	Al Thumama Stadium	\N	605	613	605
+1236	4	12	1/8	Al Bayt Stadium	\N	604	617	604
+1237	5	12	1/8	Al Janoub Stadium	\N	609	601	601
+1238	5	12	1/8	Stadium 974	\N	597	619	597
+1239	6	12	1/8	Education City Stadium	\N	611	620	611
+1240	6	12	1/8	Lusail Stadium	\N	614	621	614
+1241	9	12	1/4	Education City Stadium	\N	601	597	601
+1242	9	12	1/4	Lusail Stadium	\N	612	594	594
+1243	10	12	1/4	Al Thumama Stadium	\N	611	614	611
+1244	10	12	1/4	Al Bayt Stadium	\N	604	605	605
+1245	13	12	1/2	Lusail Stadium	\N	594	601	594
+1246	14	12	1/2	Al Bayt Stadium	\N	605	611	605
+1247	17	12	FinaleConsolation	Khalifa International Stadium	\N	601	611	601
+1248	18	12	Finale	Lusail Stadium	\N	594	605	594
 \.
 
 
@@ -27047,7 +28280,1255 @@ COPY public.possede (equipe_id, joueur_id) FROM stdin;
 -- Data for Name: scorefinal; Type: TABLE DATA; Schema: public; Owner: wcuser
 --
 
-COPY public.scorefinal (match_id, pointequipea, pointequipeb) FROM stdin;
+COPY public.scorefinal (match_id, pointequipea, pointequipeb, penaltie_equipea, penaltie_equipeb) FROM stdin;
+1	4	1	\N	\N
+2	3	0	\N	\N
+3	2	1	\N	\N
+4	3	1	\N	\N
+5	1	0	\N	\N
+6	3	0	\N	\N
+7	4	0	\N	\N
+8	3	0	\N	\N
+9	1	0	\N	\N
+10	1	0	\N	\N
+11	6	3	\N	\N
+12	4	0	\N	\N
+13	1	0	\N	\N
+14	4	0	\N	\N
+15	3	1	\N	\N
+16	6	1	\N	\N
+17	6	1	\N	\N
+18	4	2	\N	\N
+19	3	2	\N	\N
+20	2	1	\N	\N
+21	5	2	\N	\N
+22	4	2	\N	\N
+23	7	1	\N	\N
+24	3	1	\N	\N
+25	3	2	\N	\N
+26	3	2	\N	\N
+27	2	1	\N	\N
+28	3	2	\N	\N
+29	2	1	\N	\N
+30	1	1	\N	\N
+31	1	0	\N	\N
+32	3	1	\N	\N
+33	1	0	\N	\N
+34	3	2	\N	\N
+35	2	1	\N	\N
+36	1	1	\N	\N
+37	3	3	\N	\N
+38	3	1	\N	\N
+39	6	0	\N	\N
+40	2	1	\N	\N
+41	6	5	\N	\N
+42	3	0	\N	\N
+43	2	1	\N	\N
+44	4	2	\N	\N
+45	1	1	\N	\N
+46	2	0	\N	\N
+47	3	1	\N	\N
+48	8	0	\N	\N
+49	2	1	\N	\N
+50	5	1	\N	\N
+51	2	1	\N	\N
+52	4	2	\N	\N
+53	4	2	\N	\N
+54	4	0	\N	\N
+55	3	0	\N	\N
+56	2	0	\N	\N
+57	3	1	\N	\N
+58	3	2	\N	\N
+59	2	2	\N	\N
+60	4	1	\N	\N
+61	2	0	\N	\N
+62	1	0	\N	\N
+63	2	2	\N	\N
+64	2	0	\N	\N
+65	5	2	\N	\N
+66	1	0	\N	\N
+67	2	0	\N	\N
+68	8	0	\N	\N
+69	2	1	\N	\N
+70	7	1	\N	\N
+71	2	2	\N	\N
+72	6	1	\N	\N
+73	3	2	\N	\N
+74	3	1	\N	\N
+75	2	1	\N	\N
+76	5	0	\N	\N
+77	1	0	\N	\N
+78	1	0	\N	\N
+79	2	0	\N	\N
+80	2	1	\N	\N
+81	9	0	\N	\N
+82	4	1	\N	\N
+83	4	4	\N	\N
+84	7	0	\N	\N
+85	1	1	\N	\N
+86	5	0	\N	\N
+87	3	2	\N	\N
+88	8	3	\N	\N
+89	7	0	\N	\N
+90	4	1	\N	\N
+91	2	0	\N	\N
+92	7	2	\N	\N
+93	4	1	\N	\N
+94	7	5	\N	\N
+95	4	2	\N	\N
+96	4	2	\N	\N
+97	2	0	\N	\N
+98	4	2	\N	\N
+99	6	1	\N	\N
+100	3	1	\N	\N
+101	3	2	\N	\N
+102	3	0	\N	\N
+103	1	3	\N	\N
+104	1	0	\N	\N
+105	7	3	\N	\N
+106	1	1	\N	\N
+107	1	1	\N	\N
+108	3	0	\N	\N
+109	2	2	\N	\N
+110	3	1	\N	\N
+111	2	2	\N	\N
+112	3	2	\N	\N
+113	3	2	\N	\N
+114	1	1	\N	\N
+115	0	0	\N	\N
+116	2	0	\N	\N
+117	2	1	\N	\N
+118	0	0	\N	\N
+119	6	1	\N	\N
+120	2	2	\N	\N
+121	2	1	\N	\N
+122	3	3	\N	\N
+123	4	0	\N	\N
+124	2	0	\N	\N
+125	2	2	\N	\N
+126	2	1	\N	\N
+127	2	1	\N	\N
+128	1	0	\N	\N
+129	1	0	\N	\N
+130	4	0	\N	\N
+131	2	0	\N	\N
+132	1	0	\N	\N
+133	5	2	\N	\N
+134	3	1	\N	\N
+135	6	3	\N	\N
+136	5	2	\N	\N
+137	2	1	\N	\N
+138	3	1	\N	\N
+139	2	0	\N	\N
+140	1	0	\N	\N
+141	2	0	\N	\N
+142	0	0	\N	\N
+143	1	0	\N	\N
+144	2	1	\N	\N
+145	3	1	\N	\N
+146	2	0	\N	\N
+147	0	0	\N	\N
+148	3	1	\N	\N
+149	4	4	\N	\N
+150	2	1	\N	\N
+151	1	0	\N	\N
+152	6	1	\N	\N
+153	2	1	\N	\N
+154	2	0	\N	\N
+155	2	1	\N	\N
+156	0	0	\N	\N
+157	5	0	\N	\N
+158	3	0	\N	\N
+159	3	1	\N	\N
+160	0	0	\N	\N
+161	3	1	\N	\N
+162	2	1	\N	\N
+163	1	0	\N	\N
+164	1	0	\N	\N
+165	4	2	\N	\N
+166	3	1	\N	\N
+167	1	0	\N	\N
+168	3	1	\N	\N
+169	0	0	\N	\N
+170	5	0	\N	\N
+171	2	0	\N	\N
+172	3	0	\N	\N
+173	1	1	\N	\N
+174	2	1	\N	\N
+175	3	1	\N	\N
+176	2	0	\N	\N
+177	2	1	\N	\N
+178	2	1	\N	\N
+179	3	1	\N	\N
+180	1	1	\N	\N
+181	0	0	\N	\N
+182	3	0	\N	\N
+183	1	0	\N	\N
+184	2	0	\N	\N
+185	0	0	\N	\N
+186	2	0	\N	\N
+187	3	1	\N	\N
+188	1	0	\N	\N
+189	2	0	\N	\N
+190	2	1	\N	\N
+191	3	1	\N	\N
+192	2	1	\N	\N
+193	1	0	\N	\N
+194	5	3	\N	\N
+195	2	1	\N	\N
+196	4	0	\N	\N
+197	2	1	\N	\N
+198	2	1	\N	\N
+199	2	1	\N	\N
+200	4	2	\N	\N
+201	0	0	\N	\N
+202	2	0	\N	\N
+203	1	0	\N	\N
+204	3	2	\N	\N
+205	3	0	\N	\N
+206	1	0	\N	\N
+207	4	1	\N	\N
+208	2	1	\N	\N
+209	4	1	\N	\N
+210	0	0	\N	\N
+211	2	1	\N	\N
+212	3	0	\N	\N
+213	4	0	\N	\N
+214	1	1	\N	\N
+215	1	0	\N	\N
+216	5	2	\N	\N
+217	2	0	\N	\N
+218	1	0	\N	\N
+219	3	2	\N	\N
+220	3	1	\N	\N
+221	1	0	\N	\N
+222	0	0	\N	\N
+223	1	0	\N	\N
+224	1	1	\N	\N
+225	4	2	\N	\N
+226	4	1	\N	\N
+227	0	1	\N	\N
+228	3	2	\N	\N
+229	3	1	\N	\N
+230	4	3	\N	\N
+231	1	0	\N	\N
+232	4	1	\N	\N
+233	0	0	\N	\N
+234	1	0	\N	\N
+235	2	0	\N	\N
+236	0	2	\N	\N
+237	0	0	\N	\N
+238	0	2	\N	\N
+239	3	1	\N	\N
+240	3	2	\N	\N
+241	0	3	\N	\N
+242	1	1	\N	\N
+243	0	0	\N	\N
+244	9	0	\N	\N
+245	1	1	\N	\N
+246	0	0	\N	\N
+247	1	1	\N	\N
+248	0	7	\N	\N
+249	0	0	\N	\N
+250	1	1	\N	\N
+251	0	3	\N	\N
+252	1	0	\N	\N
+253	1	4	\N	\N
+254	3	0	\N	\N
+255	4	1	\N	\N
+256	2	1	\N	\N
+257	0	2	\N	\N
+258	1	0	\N	\N
+259	4	0	\N	\N
+260	0	1	\N	\N
+261	1	2	\N	\N
+262	0	2	\N	\N
+263	2	1	\N	\N
+264	4	2	\N	\N
+265	0	1	\N	\N
+266	1	1	\N	\N
+267	2	0	\N	\N
+268	2	1	\N	\N
+269	0	1	\N	\N
+270	1	2	\N	\N
+271	0	0	\N	\N
+272	2	1	\N	\N
+273	3	1	\N	\N
+274	2	1	\N	\N
+275	2	1	\N	\N
+276	1	1	\N	\N
+277	3	0	\N	\N
+278	3	1	\N	\N
+279	3	1	\N	\N
+280	1	0	\N	\N
+281	6	0	\N	\N
+282	2	1	\N	\N
+283	1	0	\N	\N
+284	0	0	\N	\N
+285	0	0	\N	\N
+286	1	1	\N	\N
+287	3	1	\N	\N
+288	3	1	\N	\N
+289	0	0	\N	\N
+290	0	1	\N	\N
+291	1	0	\N	\N
+292	1	0	\N	\N
+293	4	1	\N	\N
+294	3	2	\N	\N
+295	1	5	\N	\N
+296	0	0	\N	\N
+297	3	0	\N	\N
+298	2	0	\N	\N
+299	0	1	\N	\N
+300	1	0	\N	\N
+301	2	2	\N	\N
+302	0	0	\N	\N
+303	3	2	\N	\N
+304	1	2	\N	\N
+305	3	1	\N	\N
+306	6	0	\N	\N
+307	2	1	\N	\N
+308	3	1	\N	\N
+309	0	1	\N	\N
+310	0	0	\N	\N
+311	2	1	\N	\N
+312	0	0	\N	\N
+313	10	1	\N	\N
+314	5	2	\N	\N
+315	1	2	\N	\N
+316	3	1	\N	\N
+317	1	1	\N	\N
+318	0	1	\N	\N
+319	1	1	\N	\N
+320	0	0	\N	\N
+321	1	1	\N	\N
+322	4	1	\N	\N
+323	4	1	\N	\N
+324	0	0	\N	\N
+325	1	0	\N	\N
+326	3	0	\N	\N
+327	4	1	\N	\N
+328	2	0	\N	\N
+329	2	1	\N	\N
+330	0	2	\N	\N
+331	4	1	\N	\N
+332	1	1	\N	\N
+333	5	1	\N	\N
+334	1	1	\N	\N
+335	2	2	\N	\N
+336	1	1	\N	\N
+337	2	0	\N	\N
+338	4	0	\N	\N
+339	3	2	\N	\N
+340	1	1	\N	\N
+341	0	1	\N	\N
+342	1	0	\N	\N
+343	1	0	\N	\N
+344	0	1	\N	\N
+345	0	1	\N	\N
+346	3	0	\N	\N
+347	2	1	\N	\N
+348	0	0	\N	\N
+349	2	2	\N	\N
+350	0	1	\N	\N
+351	1	3	\N	\N
+352	2	1	\N	\N
+353	4	1	\N	\N
+354	0	0	\N	\N
+355	3	2	\N	\N
+356	0	0	\N	\N
+357	0	2	\N	\N
+358	3	3	5	4
+359	3	2	\N	\N
+360	3	1	\N	\N
+361	1	1	\N	\N
+362	0	1	\N	\N
+363	0	1	\N	\N
+364	3	1	\N	\N
+365	6	0	\N	\N
+366	0	0	\N	\N
+367	1	2	\N	\N
+368	1	1	\N	\N
+369	1	0	\N	\N
+370	1	0	\N	\N
+371	1	1	\N	\N
+372	0	1	\N	\N
+373	1	1	\N	\N
+374	1	1	\N	\N
+375	1	1	\N	\N
+376	2	0	\N	\N
+377	1	0	\N	\N
+378	0	0	\N	\N
+379	1	1	\N	\N
+380	1	2	\N	\N
+381	1	0	\N	\N
+382	1	2	\N	\N
+383	2	1	\N	\N
+384	6	1	\N	\N
+385	0	3	\N	\N
+386	2	0	\N	\N
+387	2	0	\N	\N
+388	2	3	\N	\N
+389	0	1	\N	\N
+390	2	2	\N	\N
+391	3	0	\N	\N
+392	1	3	\N	\N
+393	0	3	\N	\N
+394	0	3	\N	\N
+395	2	0	\N	\N
+396	0	0	\N	\N
+397	2	0	\N	\N
+398	3	4	\N	\N
+399	4	0	\N	\N
+400	1	0	\N	\N
+401	0	2	\N	\N
+402	0	1	\N	\N
+403	3	0	\N	\N
+404	1	5	\N	\N
+405	1	1	3	4
+406	0	0	4	1
+407	2	1	\N	\N
+408	1	1	4	5
+409	0	2	\N	\N
+410	2	0	\N	\N
+411	2	4	\N	\N
+412	3	2	\N	\N
+413	0	1	\N	\N
+414	0	2	\N	\N
+415	0	2	\N	\N
+416	1	0	\N	\N
+417	1	5	\N	\N
+418	2	1	\N	\N
+419	4	1	\N	\N
+420	1	0	\N	\N
+421	1	1	\N	\N
+422	2	0	\N	\N
+423	1	1	\N	\N
+424	0	0	\N	\N
+425	2	0	\N	\N
+426	2	1	\N	\N
+427	1	0	\N	\N
+428	1	0	\N	\N
+429	0	1	\N	\N
+430	5	1	\N	\N
+431	1	0	\N	\N
+432	1	2	\N	\N
+433	0	0	\N	\N
+434	0	0	\N	\N
+435	3	1	\N	\N
+436	1	3	\N	\N
+437	1	1	\N	\N
+438	0	4	\N	\N
+439	1	1	\N	\N
+440	4	1	\N	\N
+441	2	1	\N	\N
+442	2	0	\N	\N
+443	1	0	\N	\N
+444	1	2	\N	\N
+445	1	2	\N	\N
+446	0	1	\N	\N
+447	1	0	\N	\N
+448	1	1	\N	\N
+449	2	1	\N	\N
+450	4	1	\N	\N
+451	0	1	\N	\N
+452	2	1	\N	\N
+453	0	0	5	4
+454	2	0	\N	\N
+455	1	2	\N	\N
+456	1	0	\N	\N
+457	0	0	3	2
+458	0	1	\N	\N
+459	0	1	\N	\N
+460	2	3	\N	\N
+461	1	1	4	3
+462	1	1	4	3
+463	2	1	\N	\N
+464	1	0	\N	\N
+465	4	0	\N	\N
+466	4	0	\N	\N
+467	3	0	\N	\N
+468	0	1	\N	\N
+469	2	3	\N	\N
+470	0	5	\N	\N
+471	4	0	\N	\N
+472	1	0	\N	\N
+473	2	2	\N	\N
+474	0	5	\N	\N
+475	0	8	\N	\N
+476	0	3	\N	\N
+477	0	2	\N	\N
+478	0	3	\N	\N
+479	4	1	\N	\N
+480	2	1	\N	\N
+481	2	0	\N	\N
+482	0	2	\N	\N
+483	1	2	\N	\N
+484	0	1	\N	\N
+485	3	2	\N	\N
+486	7	0	\N	\N
+487	1	4	\N	\N
+488	2	5	\N	\N
+489	4	0	\N	\N
+490	1	2	\N	\N
+491	1	0	\N	\N
+492	2	2	\N	\N
+493	1	1	\N	\N
+494	0	1	\N	\N
+495	1	3	\N	\N
+496	1	0	\N	\N
+497	1	0	\N	\N
+498	2	2	\N	\N
+499	2	0	\N	\N
+500	2	1	\N	\N
+501	4	0	\N	\N
+502	1	1	\N	\N
+503	3	0	\N	\N
+504	1	4	\N	\N
+505	2	1	\N	\N
+506	1	0	\N	\N
+507	0	0	\N	\N
+508	2	1	\N	\N
+509	3	0	\N	\N
+510	3	1	\N	\N
+511	1	0	\N	\N
+512	2	1	\N	\N
+513	2	1	\N	\N
+514	4	0	\N	\N
+515	0	2	\N	\N
+516	0	1	\N	\N
+517	1	3	\N	\N
+518	3	2	\N	\N
+519	1	1	\N	\N
+520	0	0	\N	\N
+521	6	1	\N	\N
+522	1	1	\N	\N
+523	0	1	\N	\N
+524	1	2	\N	\N
+525	0	2	\N	\N
+526	0	2	\N	\N
+527	3	2	\N	\N
+528	3	0	\N	\N
+529	1	3	\N	\N
+530	3	2	\N	\N
+531	2	0	\N	\N
+532	1	0	\N	\N
+533	1	2	\N	\N
+534	1	1	1	3
+535	2	1	\N	\N
+536	2	3	\N	\N
+537	2	1	\N	\N
+538	2	2	4	5
+539	1	2	\N	\N
+540	0	1	\N	\N
+541	4	0	\N	\N
+542	0	0	3	2
+543	1	0	\N	\N
+544	0	1	\N	\N
+545	3	2	\N	\N
+546	8	0	\N	\N
+547	5	0	\N	\N
+548	3	3	\N	\N
+549	1	2	\N	\N
+550	3	2	\N	\N
+551	3	3	\N	\N
+552	2	0	\N	\N
+553	4	2	\N	\N
+554	2	0	\N	\N
+555	1	6	\N	\N
+556	2	0	\N	\N
+557	2	3	\N	\N
+558	7	0	\N	\N
+559	3	1	\N	\N
+560	4	1	\N	\N
+561	0	4	\N	\N
+562	3	1	\N	\N
+563	3	0	\N	\N
+564	1	1	3	4
+565	0	1	\N	\N
+566	1	0	\N	\N
+567	0	2	\N	\N
+568	0	2	\N	\N
+569	2	1	\N	\N
+570	2	2	\N	\N
+571	2	2	\N	\N
+572	1	1	\N	\N
+573	0	0	\N	\N
+574	0	1	\N	\N
+575	3	0	\N	\N
+576	2	3	\N	\N
+577	1	3	\N	\N
+578	0	0	\N	\N
+579	1	0	\N	\N
+580	1	0	\N	\N
+581	1	3	\N	\N
+582	2	0	\N	\N
+583	1	0	\N	\N
+584	2	0	\N	\N
+585	1	1	\N	\N
+586	3	0	\N	\N
+587	1	1	\N	\N
+588	3	0	\N	\N
+589	1	1	\N	\N
+590	4	0	\N	\N
+591	1	0	\N	\N
+592	0	0	\N	\N
+593	0	1	\N	\N
+594	2	2	\N	\N
+595	5	0	\N	\N
+596	2	2	\N	\N
+597	5	0	\N	\N
+598	1	2	\N	\N
+599	1	0	\N	\N
+600	2	1	\N	\N
+601	1	1	\N	\N
+602	2	1	\N	\N
+603	1	2	\N	\N
+604	0	3	\N	\N
+605	2	1	\N	\N
+606	2	2	\N	\N
+607	1	3	\N	\N
+608	6	1	\N	\N
+609	1	1	\N	\N
+610	2	2	\N	\N
+611	2	0	\N	\N
+612	0	1	\N	\N
+613	1	0	\N	\N
+614	1	2	\N	\N
+615	0	2	\N	\N
+616	1	1	\N	\N
+617	1	0	\N	\N
+618	4	1	\N	\N
+619	1	0	\N	\N
+620	1	4	\N	\N
+621	2	1	\N	\N
+622	2	1	\N	\N
+623	0	1	\N	\N
+624	2	2	4	3
+625	0	0	3	4
+626	3	2	\N	\N
+627	2	1	\N	\N
+628	0	3	\N	\N
+629	1	1	4	2
+630	2	1	\N	\N
+631	1	2	\N	\N
+632	0	3	\N	\N
+633	3	0	\N	\N
+634	2	1	\N	\N
+635	7	1	\N	\N
+636	1	1	\N	\N
+637	1	1	\N	\N
+638	2	1	\N	\N
+639	1	2	\N	\N
+640	1	1	\N	\N
+641	0	5	\N	\N
+642	7	1	\N	\N
+643	1	3	\N	\N
+644	7	0	\N	\N
+645	2	0	\N	\N
+646	3	1	\N	\N
+647	7	1	\N	\N
+648	6	0	\N	\N
+649	1	4	\N	\N
+650	3	1	\N	\N
+651	0	2	\N	\N
+652	4	0	\N	\N
+653	3	3	\N	\N
+654	2	0	\N	\N
+655	0	2	\N	\N
+656	3	0	\N	\N
+657	2	0	\N	\N
+658	3	1	\N	\N
+659	3	2	\N	\N
+660	4	3	\N	\N
+661	2	0	\N	\N
+662	0	5	\N	\N
+663	0	0	5	4
+664	0	0	5	4
+665	0	1	\N	\N
+666	1	1	\N	\N
+667	1	2	\N	\N
+668	8	0	\N	\N
+669	1	0	\N	\N
+670	2	2	\N	\N
+671	1	1	\N	\N
+672	3	1	\N	\N
+673	0	1	\N	\N
+674	2	1	\N	\N
+675	2	0	\N	\N
+676	0	2	\N	\N
+677	2	2	\N	\N
+678	2	0	\N	\N
+679	2	0	\N	\N
+680	3	2	\N	\N
+681	1	1	\N	\N
+682	1	1	\N	\N
+683	1	0	\N	\N
+684	0	0	\N	\N
+685	2	1	\N	\N
+686	3	1	\N	\N
+687	0	1	\N	\N
+688	1	0	\N	\N
+689	1	2	\N	\N
+690	4	0	\N	\N
+691	2	1	\N	\N
+692	1	1	\N	\N
+693	1	0	\N	\N
+694	1	1	\N	\N
+695	1	1	\N	\N
+696	4	0	\N	\N
+697	2	0	\N	\N
+698	3	3	\N	\N
+699	0	2	\N	\N
+700	0	3	\N	\N
+701	0	0	\N	\N
+702	1	1	\N	\N
+703	1	3	\N	\N
+704	2	3	\N	\N
+705	2	5	\N	\N
+706	3	0	\N	\N
+707	1	0	\N	\N
+708	1	1	\N	\N
+709	3	2	\N	\N
+710	0	2	\N	\N
+711	3	1	\N	\N
+712	0	1	\N	\N
+713	1	0	\N	\N
+714	0	3	\N	\N
+715	1	2	\N	\N
+716	1	1	3	2
+717	0	2	\N	\N
+718	2	0	\N	\N
+719	0	1	\N	\N
+720	2	1	\N	\N
+721	1	2	\N	\N
+722	1	0	\N	\N
+723	0	0	3	5
+724	0	1	\N	\N
+725	1	0	\N	\N
+726	1	0	\N	\N
+727	2	3	\N	\N
+728	0	2	\N	\N
+729	2	0	\N	\N
+730	0	3	\N	\N
+731	4	1	\N	\N
+732	6	0	\N	\N
+733	3	1	\N	\N
+734	3	0	\N	\N
+735	1	2	\N	\N
+736	1	0	\N	\N
+737	1	4	\N	\N
+738	3	0	\N	\N
+739	1	0	\N	\N
+740	3	0	\N	\N
+741	0	3	\N	\N
+742	1	0	\N	\N
+743	1	1	\N	\N
+744	5	0	\N	\N
+745	1	1	\N	\N
+746	1	7	\N	\N
+747	1	6	\N	\N
+748	3	1	\N	\N
+749	3	0	\N	\N
+750	0	3	\N	\N
+751	2	1	\N	\N
+752	1	0	\N	\N
+753	1	2	\N	\N
+754	1	0	\N	\N
+755	7	1	\N	\N
+756	0	1	\N	\N
+757	0	3	\N	\N
+758	2	1	\N	\N
+759	3	1	\N	\N
+760	2	1	\N	\N
+761	4	2	\N	\N
+762	0	2	\N	\N
+763	1	0	\N	\N
+764	0	0	\N	\N
+765	2	1	\N	\N
+766	0	1	\N	\N
+767	3	1	\N	\N
+768	0	1	\N	\N
+769	3	1	\N	\N
+770	0	3	\N	\N
+771	2	0	\N	\N
+772	2	1	\N	\N
+773	0	0	\N	\N
+774	1	0	\N	\N
+775	4	0	\N	\N
+776	2	2	\N	\N
+777	1	0	\N	\N
+778	3	0	\N	\N
+779	2	0	\N	\N
+780	1	0	\N	\N
+781	6	0	\N	\N
+782	2	1	\N	\N
+783	0	0	\N	\N
+784	2	0	\N	\N
+785	0	2	\N	\N
+786	1	1	\N	\N
+787	0	0	\N	\N
+788	2	0	\N	\N
+789	1	1	\N	\N
+790	0	2	\N	\N
+791	0	4	\N	\N
+792	3	1	\N	\N
+793	1	2	\N	\N
+794	0	3	\N	\N
+795	2	0	\N	\N
+796	2	2	\N	\N
+797	1	1	\N	\N
+798	2	1	\N	\N
+799	3	2	\N	\N
+800	0	0	\N	\N
+801	0	2	\N	\N
+802	2	1	\N	\N
+803	2	2	\N	\N
+804	1	4	\N	\N
+805	0	1	\N	\N
+806	1	0	\N	\N
+807	2	0	\N	\N
+808	0	2	\N	\N
+809	2	0	\N	\N
+810	2	1	\N	\N
+811	1	0	\N	\N
+812	1	0	\N	\N
+813	1	0	\N	\N
+814	0	0	0	3
+815	3	0	\N	\N
+816	1	3	\N	\N
+817	1	1	4	2
+818	3	0	\N	\N
+819	0	0	1	3
+820	0	1	\N	\N
+821	0	2	\N	\N
+822	0	1	\N	\N
+823	3	1	\N	\N
+824	1	1	5	3
+825	11	0	\N	\N
+826	2	2	\N	\N
+827	2	2	\N	\N
+828	1	1	\N	\N
+829	1	4	\N	\N
+830	0	5	\N	\N
+831	2	1	\N	\N
+832	3	2	\N	\N
+833	0	1	\N	\N
+834	0	2	\N	\N
+835	0	0	\N	\N
+836	2	0	\N	\N
+837	4	0	\N	\N
+838	2	0	\N	\N
+839	1	1	\N	\N
+840	4	0	\N	\N
+841	6	1	\N	\N
+842	2	0	\N	\N
+843	0	1	\N	\N
+844	1	2	\N	\N
+845	2	2	\N	\N
+846	7	2	\N	\N
+847	1	0	\N	\N
+848	2	0	\N	\N
+849	3	0	\N	\N
+850	3	0	\N	\N
+851	1	0	\N	\N
+852	3	2	\N	\N
+853	3	0	\N	\N
+854	0	4	\N	\N
+855	1	4	\N	\N
+856	2	0	\N	\N
+857	1	1	\N	\N
+858	0	0	\N	\N
+859	2	0	\N	\N
+860	1	0	\N	\N
+861	1	1	\N	\N
+862	0	1	\N	\N
+863	0	1	\N	\N
+864	4	0	\N	\N
+865	2	0	\N	\N
+866	1	0	\N	\N
+867	1	1	\N	\N
+868	1	1	\N	\N
+869	0	0	\N	\N
+870	2	1	\N	\N
+871	0	1	\N	\N
+872	0	1	\N	\N
+873	0	3	\N	\N
+874	4	1	\N	\N
+875	2	1	\N	\N
+876	0	2	\N	\N
+877	0	1	\N	\N
+878	2	2	\N	\N
+879	0	0	\N	\N
+880	1	0	\N	\N
+881	1	1	\N	\N
+882	1	2	\N	\N
+883	0	2	\N	\N
+884	1	1	\N	\N
+885	3	1	\N	\N
+886	7	0	\N	\N
+887	1	0	\N	\N
+888	2	0	\N	\N
+889	1	2	\N	\N
+890	0	1	\N	\N
+891	0	2	\N	\N
+892	2	2	\N	\N
+893	0	1	\N	\N
+894	1	0	\N	\N
+895	2	1	\N	\N
+896	0	1	\N	\N
+897	0	0	\N	\N
+898	3	2	\N	\N
+899	1	2	\N	\N
+900	1	3	\N	\N
+901	0	3	\N	\N
+902	0	0	\N	\N
+903	1	2	\N	\N
+904	0	0	\N	\N
+905	2	1	\N	\N
+906	1	2	\N	\N
+907	4	1	\N	\N
+908	3	1	\N	\N
+909	2	1	\N	\N
+910	3	0	\N	\N
+911	0	0	5	3
+912	1	0	\N	\N
+913	2	1	\N	\N
+914	1	1	4	2
+915	0	4	\N	\N
+916	0	1	\N	\N
+917	2	3	\N	\N
+918	0	1	\N	\N
+919	2	3	\N	\N
+920	0	1	\N	\N
+921	0	1	\N	\N
+922	2	1	\N	\N
+923	2	1	\N	\N
+924	1	1	\N	\N
+925	0	1	\N	\N
+926	2	0	\N	\N
+927	1	0	\N	\N
+928	1	0	\N	\N
+929	0	4	\N	\N
+930	1	0	\N	\N
+931	4	0	\N	\N
+932	1	2	\N	\N
+933	0	1	\N	\N
+934	3	0	\N	\N
+935	3	2	\N	\N
+936	3	0	\N	\N
+937	2	0	\N	\N
+938	2	2	\N	\N
+939	0	1	\N	\N
+940	2	4	\N	\N
+941	2	1	\N	\N
+942	0	3	\N	\N
+943	0	0	\N	\N
+944	2	1	\N	\N
+945	1	1	3	4
+946	0	1	\N	\N
+947	3	1	\N	\N
+948	2	2	3	5
+949	1	3	\N	\N
+950	3	1	\N	\N
+951	2	1	\N	\N
+952	2	2	3	1
+953	3	1	\N	\N
+954	1	0	\N	\N
+955	1	5	\N	\N
+956	3	1	\N	\N
+957	3	0	\N	\N
+958	1	3	\N	\N
+959	1	2	\N	\N
+960	2	1	\N	\N
+961	2	1	\N	\N
+962	3	0	\N	\N
+963	2	1	\N	\N
+964	4	0	\N	\N
+965	0	0	\N	\N
+966	1	2	\N	\N
+967	2	1	\N	\N
+968	0	0	\N	\N
+969	1	1	\N	\N
+970	2	3	\N	\N
+971	0	2	\N	\N
+972	0	4	\N	\N
+973	2	1	\N	\N
+974	2	1	\N	\N
+975	0	0	\N	\N
+976	0	1	\N	\N
+977	2	5	\N	\N
+978	1	2	\N	\N
+979	1	0	\N	\N
+980	2	2	\N	\N
+981	1	0	\N	\N
+982	1	0	\N	\N
+983	2	4	\N	\N
+984	2	2	\N	\N
+985	0	3	\N	\N
+986	2	0	\N	\N
+987	1	4	\N	\N
+988	1	3	\N	\N
+989	0	0	\N	\N
+990	0	1	\N	\N
+991	1	4	\N	\N
+992	2	1	\N	\N
+993	3	1	\N	\N
+994	2	3	\N	\N
+995	0	3	\N	\N
+996	0	0	\N	\N
+997	2	1	\N	\N
+998	0	1	\N	\N
+999	1	1	\N	\N
+1000	0	1	\N	\N
+1001	1	1	3	2
+1002	2	0	\N	\N
+1003	2	1	\N	\N
+1004	1	1	5	3
+1005	2	0	\N	\N
+1006	2	1	\N	\N
+1007	1	0	\N	\N
+1008	2	1	\N	\N
+1009	0	1	\N	\N
+1010	2	1	\N	\N
+1011	1	0	\N	\N
+1012	0	0	4	3
+1013	1	7	\N	\N
+1014	0	0	2	4
+1015	0	3	\N	\N
+1016	1	0	\N	\N
+1017	1	0	\N	\N
+1018	0	1	\N	\N
+1019	4	0	\N	\N
+1020	10	0	\N	\N
+1021	3	3	\N	\N
+1022	6	0	\N	\N
+1023	3	1	\N	\N
+1024	1	0	\N	\N
+1025	1	0	\N	\N
+1026	1	1	\N	\N
+1027	1	1	\N	\N
+1028	2	0	\N	\N
+1029	1	0	\N	\N
+1030	1	1	\N	\N
+1031	0	0	\N	\N
+1032	2	3	\N	\N
+1033	10	1	\N	\N
+1034	2	0	\N	\N
+1035	2	1	\N	\N
+1036	0	0	\N	\N
+1037	0	2	\N	\N
+1038	1	0	\N	\N
+1039	2	1	\N	\N
+1040	2	2	\N	\N
+1041	0	4	\N	\N
+1042	1	3	\N	\N
+1043	2	2	\N	\N
+1044	1	1	\N	\N
+1045	1	2	\N	\N
+1046	0	1	\N	\N
+1047	0	1	\N	\N
+1048	1	1	\N	\N
+1049	2	1	\N	\N
+1050	0	5	\N	\N
+1051	2	1	\N	\N
+1052	0	1	\N	\N
+1053	4	1	\N	\N
+1054	1	0	\N	\N
+1055	0	1	\N	\N
+1056	3	0	\N	\N
+1057	1	0	\N	\N
+1058	1	2	\N	\N
+1059	2	0	\N	\N
+1060	2	1	\N	\N
+1061	1	1	5	4
+1062	0	1	\N	\N
+1063	0	1	\N	\N
+1064	2	1	\N	\N
+1065	2	0	\N	\N
+1066	2	1	\N	\N
+1067	0	1	\N	\N
+1068	5	2	\N	\N
+1069	5	0	\N	\N
+1070	0	1	\N	\N
+1071	0	1	\N	\N
+1072	3	3	\N	\N
+1073	2	1	\N	\N
+1074	1	1	\N	\N
+1075	0	1	\N	\N
+1076	2	0	\N	\N
+1077	0	1	\N	\N
+1078	0	1	\N	\N
+1079	1	1	\N	\N
+1080	1	0	\N	\N
+1081	3	0	\N	\N
+1082	1	2	\N	\N
+1083	1	2	\N	\N
+1084	1	2	\N	\N
+1085	3	1	\N	\N
+1086	1	0	\N	\N
+1087	1	0	\N	\N
+1088	0	1	\N	\N
+1089	1	1	\N	\N
+1090	1	0	\N	\N
+1091	0	3	\N	\N
+1092	2	0	\N	\N
+1093	2	0	\N	\N
+1094	1	2	\N	\N
+1095	5	2	\N	\N
+1096	1	2	\N	\N
+1097	2	1	\N	\N
+1098	6	1	\N	\N
+1099	2	2	\N	\N
+1100	0	3	\N	\N
+1101	2	1	\N	\N
+1102	3	0	\N	\N
+1103	2	2	\N	\N
+1104	1	1	\N	\N
+1105	0	2	\N	\N
+1106	0	0	\N	\N
+1107	1	2	\N	\N
+1108	1	2	\N	\N
+1109	2	0	\N	\N
+1110	0	3	\N	\N
+1111	0	2	\N	\N
+1112	2	2	\N	\N
+1113	0	1	\N	\N
+1114	0	1	\N	\N
+1115	0	1	\N	\N
+1116	1	2	\N	\N
+1117	4	3	\N	\N
+1118	2	1	\N	\N
+1119	1	1	3	4
+1120	1	1	3	2
+1121	2	0	\N	\N
+1122	3	2	\N	\N
+1123	1	0	\N	\N
+1124	1	1	3	4
+1125	0	2	\N	\N
+1126	1	2	\N	\N
+1127	0	2	\N	\N
+1128	2	2	3	4
+1129	1	0	\N	\N
+1130	2	1	\N	\N
+1131	2	0	\N	\N
+1132	4	2	\N	\N
+1133	4	0	\N	\N
+1134	1	0	\N	\N
+1135	3	1	\N	\N
+1136	3	0	\N	\N
+1137	1	2	\N	\N
+1138	3	0	\N	\N
+1139	2	1	\N	\N
+1140	0	0	\N	\N
+1141	1	0	\N	\N
+1142	0	1	\N	\N
+1143	0	2	\N	\N
+1144	13	0	\N	\N
+1145	2	0	\N	\N
+1146	1	0	\N	\N
+1147	2	1	\N	\N
+1148	3	2	\N	\N
+1149	0	1	\N	\N
+1150	2	1	\N	\N
+1151	0	5	\N	\N
+1152	1	0	\N	\N
+1153	3	1	\N	\N
+1154	2	0	\N	\N
+1155	5	1	\N	\N
+1156	3	0	\N	\N
+1157	0	0	\N	\N
+1158	0	4	\N	\N
+1159	0	1	\N	\N
+1160	1	2	\N	\N
+1161	0	1	\N	\N
+1162	1	4	\N	\N
+1163	0	2	\N	\N
+1164	3	3	\N	\N
+1165	2	1	\N	\N
+1166	2	1	\N	\N
+1167	0	2	\N	\N
+1168	0	2	\N	\N
+1169	3	0	\N	\N
+1170	1	1	4	1
+1171	3	0	\N	\N
+1172	2	1	\N	\N
+1173	1	2	\N	\N
+1174	1	0	\N	\N
+1175	2	0	\N	\N
+1176	2	1	\N	\N
+1177	0	3	\N	\N
+1178	1	2	\N	\N
+1179	0	2	\N	\N
+1180	1	2	\N	\N
+1181	1	2	\N	\N
+1182	1	0	\N	\N
+1183	1	2	\N	\N
+1184	2	0	\N	\N
+1185	0	2	\N	\N
+1186	6	2	\N	\N
+1187	0	2	\N	\N
+1188	1	1	\N	\N
+1189	1	2	\N	\N
+1190	0	0	\N	\N
+1191	0	0	\N	\N
+1192	4	1	\N	\N
+1193	0	0	\N	\N
+1194	1	2	\N	\N
+1195	7	0	\N	\N
+1196	1	0	\N	\N
+1197	1	0	\N	\N
+1198	0	0	\N	\N
+1199	3	2	\N	\N
+1200	2	0	\N	\N
+1201	0	2	\N	\N
+1202	1	3	\N	\N
+1203	1	1	\N	\N
+1204	0	0	\N	\N
+1205	0	1	\N	\N
+1206	2	0	\N	\N
+1207	2	1	\N	\N
+1208	2	0	\N	\N
+1209	0	1	\N	\N
+1210	0	2	\N	\N
+1211	4	1	\N	\N
+1212	1	1	\N	\N
+1213	3	3	\N	\N
+1214	2	3	\N	\N
+1215	1	0	\N	\N
+1216	2	0	\N	\N
+1217	1	2	\N	\N
+1218	2	0	\N	\N
+1219	0	1	\N	\N
+1220	0	3	\N	\N
+1221	1	0	\N	\N
+1222	1	0	\N	\N
+1223	0	2	\N	\N
+1224	1	2	\N	\N
+1225	1	2	\N	\N
+1226	0	0	\N	\N
+1227	2	4	\N	\N
+1228	2	1	\N	\N
+1229	0	2	\N	\N
+1230	2	1	\N	\N
+1231	1	0	\N	\N
+1232	2	3	\N	\N
+1233	3	1	\N	\N
+1234	2	1	\N	\N
+1235	3	1	\N	\N
+1236	3	0	\N	\N
+1237	1	1	1	3
+1238	4	1	\N	\N
+1239	0	0	3	0
+1240	6	1	\N	\N
+1241	1	1	4	2
+1242	2	2	3	4
+1243	1	0	\N	\N
+1244	1	2	\N	\N
+1245	3	0	\N	\N
+1246	2	0	\N	\N
+1247	2	1	\N	\N
+1248	3	3	4	2
 \.
 
 
@@ -27728,7 +30209,7 @@ SELECT pg_catalog.setval('public.joueur_id_joueur_seq', 1, false);
 -- Name: matchs_id_match_seq; Type: SEQUENCE SET; Schema: public; Owner: wcuser
 --
 
-SELECT pg_catalog.setval('public.matchs_id_match_seq', 1, false);
+SELECT pg_catalog.setval('public.matchs_id_match_seq', 1248, true);
 
 
 --
