@@ -30,15 +30,20 @@ brew install --cask docker
 git clone https://github.com/ton-compte/Projet_World_Cup.git
 cd Projet_World_Cup/world-cup-bd
 ````
-### 2. Démarer la page React (rien fait encore)
+### 2. Démarer la page React
 ```bash
+npm install
+npm start
+```
+### 3. Démarer le server (Dans un autre terminal)
+```bash
+cd Projet_World_Cup/world-cup-bd/server
 npm install
 npm start
 ```
 
 
-
-### 3. Lancer PostgreSQL avec Docker et restaurer automatiquement la dernière sauvegarde
+### 4. Lancer PostgreSQL avec Docker et restaurer automatiquement la dernière sauvegarde
 
 > ⚠️ Assure-toi que **Docker Desktop** est bien démarré sur ta machine avant de continuer.
 
@@ -61,7 +66,7 @@ npm start
 ```
 
 
-### 4. Acceder a la base depuis son terminal (L'etape precedente doit etre faite)
+### 5. Acceder a la base depuis son terminal (L'etape precedente doit etre faite)
 
 ```bash
 docker exec -it postgres-wc psql -U wcuser -d worldcupdb
