@@ -6,19 +6,19 @@ const API_URL = process.env.REACT_APP_API_URL;
 const questions = [
   {
     id: 1,
-    text: "Question 1",
+    text: "Top 10 pays ayant gagné le plus de Coupes du Monde",
   },
   {
     id: 2,
-    text: "Question 2",
+    text: "Joueuses ayant reçu le plus de cartons, détail jaune/rouge",
   },
   {
     id: 3,
-    text: "Question 3",
+    text: "Sélectionneurs ayant déjà été joueurs en Coupe du Monde",
   },
   {
     id: 4,
-    text: "Question 4",
+    text: "Personnes ayant remporté le plus de Coupes (joueur + coach)",
   },
 ];
 
