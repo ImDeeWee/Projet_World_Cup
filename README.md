@@ -57,7 +57,7 @@ npm start
 ```
 
 
-⏳ Patiente environ 5 secondes — la base de données sera automatiquement restaurée à partir de la [dernière version de la BD.](world-cup-bd/docker/db/backup.sql)
+⏳ Patiente environ 5 à 10 secondes — la base de données sera automatiquement restaurée à partir de la [dernière version de la BD.](world-cup-bd/docker/db/backup.sql)
 
 #### Pour arrêter la base proprement et sauvegarder :
 
@@ -66,12 +66,12 @@ npm start
 ```
 
 
-### 5. Acceder a la base depuis son terminal (L'etape precedente doit etre faite)
+### 5. Accéder a la base depuis son terminal (L'étape précédente doit être faite)
 
 ```bash
 docker exec -it postgres-wc psql -U wcuser -d worldcupdb
 ```
-#### Exemple de requete pour voir si tous va bien:
+#### Exemple de requête pour voir si tout va bien:
 ```
 SELECT prenom, nomfamille
 FROM   joueur
@@ -93,7 +93,7 @@ La BD devrait te retourner les deux 🐐.
 | **Mot de passe** | `wcpass`      |
 | **Base**         | `worldcupdb`  |
 
-## ⚠️ Astuce pour probleme de connexion 
+## ⚠️ Astuce pour problème de connexion 
 
 > Si tu as PostgreSQL installé **localement sur ta machine** (en dehors de Docker),  
 > il se peut qu’il utilise déjà le **port 5432 et 5433**.  
@@ -109,7 +109,6 @@ La BD devrait te retourner les deux 🐐.
 - Clique droit → **Arrêter**
 
 ### Autre option
-_Demande à un AI comment le faire.
 
 Tu pourras ensuite te connecter sans problème à `localhost:5433`, qui sera désormais géré par Docker 🐳
 
